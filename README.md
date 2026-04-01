@@ -4,7 +4,7 @@ In plasticity modelling, a meridional (P-τ) plot is used to inspect how yield s
 
 ## Features
 
-![Example usage](media/example_usage.gif)
+![Example usage](media/example_usage_new.gif)
 
 - Interactive sliders for cohesion, friction angle, tensile limit, and dilation angle.
 - Optional Full Drucker-Prager mode.
