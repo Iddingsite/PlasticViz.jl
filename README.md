@@ -26,6 +26,9 @@ Pkg.add(url="https://github.com/Iddingsite/PlasticViz.jl")
 using PlasticViz
 
 run_yield_plasticity()
+
+# Choose a different startup colormap
+run_yield_plasticity(colormap = :viridis)
 ```
 
 ## Parameters

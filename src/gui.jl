@@ -12,7 +12,7 @@ function adaptive_figure_size(; frac_w = 0.72, frac_h = 0.82, min_w = 900, min_h
     end
 end
 
-function run_yield_plasticity()
+function run_yield_plasticity(; colormap = :turbo)
     fig = Figure(size = adaptive_figure_size(), fontsize = 14)
 
     ui_grid = fig[2, 1:2]
@@ -125,7 +125,7 @@ function run_yield_plasticity()
         end for px in x_grid, py_val in y_grid]
     end
 
-    cf = contourf!(ax, x_grid, y_grid, Q_data, colormap = :turbo, levels = 25, nan_color = :white)
+    cf = contourf!(ax, x_grid, y_grid, Q_data, colormap = colormap, levels = 25, nan_color = :white)
 
     # --- Drucker-Prager Reference ---
     dp_line = lift(C_obs, ϕ_obs) do C, ϕ
