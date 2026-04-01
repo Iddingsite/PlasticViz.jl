@@ -1,0 +1,16 @@
+Manifest.toml
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+docs/build/
+docs/node_modules/
+.vscode/
+*.h5
+*.hdf5
+*.xdmf
+*.DS_Store
+*.aux
+*.log
+*.out
+*.toc
+*.gz

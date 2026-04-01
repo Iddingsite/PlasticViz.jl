@@ -1,0 +1,13 @@
+name = "PlasticViz"
+uuid = "0c44d4e5-3a26-4870-acbe-ae9c52375796"
+version = "0.1.0"
+authors = ["Iddingsite <hdomingu@uni-mainz.de>"]
+
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[compat]
+GLMakie = "0.13.9"
+StaticArrays = "1.9.18"
