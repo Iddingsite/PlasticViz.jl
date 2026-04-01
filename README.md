@@ -2,6 +2,8 @@
 
 **PlasticViz.jl** is an interactive Julia tool for visualising yield surfaces in the meridional stress space (mean pressure P – shear stress τ). It implements the smooth linearised Drucker-Prager shear envelope combined with a circular tensile cap, following the formulation of Popov et al. (2025).
 
+![Example usage](media/example_usage_final.gif)
+
 In plasticity modelling, the P–τ meridional plane is the standard diagnostic space: it shows how a material transitions from sub-yield behaviour (elastic or viscous) to plastic flow as confining pressure and deviatoric stress change. PlasticViz lets you explore this graphically in real time:
 
 - The **yield surface** separates the sub-yield domain (inside) from the plastic domain (outside). Its shape is controlled by cohesion, friction angle, and tensile limit. Stress states inside the yield surface correspond to **elastic or viscous** behaviour, no irreversible plastic strain is produced.
