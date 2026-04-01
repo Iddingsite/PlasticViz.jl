@@ -1,15 +1,29 @@
 # PlasticViz.jl
 
-In plasticity modelling, a meridional (P-τ) plot is used to inspect how yield strength and flow direction evolve with confining pressure. This project provides an interactive visualization of a smooth linearized Drucker-Prager shear failure envelope with a circular tensile cap function using the formulation from Popov et al. 2025. It is intended for educational purposes and is not a comprehensive plasticity modeling tool.
+**PlasticViz.jl** is an interactive Julia tool for visualising yield surfaces in the meridional stress space (mean pressure P – shear stress τ). It implements the smooth linearised Drucker-Prager shear envelope combined with a circular tensile cap, following the formulation of Popov et al. (2025).
+
+In plasticity modelling, the P–τ meridional plane is the standard diagnostic space: it shows how a material transitions from sub-yield behaviour (elastic or viscous) to plastic flow as confining pressure and deviatoric stress change. PlasticViz lets you explore this graphically in real time:
+
+- The **yield surface** separates the sub-yield domain (inside) from the plastic domain (outside). Its shape is controlled by cohesion, friction angle, and tensile limit. Stress states inside the yield surface correspond to **elastic or viscous** behaviour, no irreversible plastic strain is produced.
+- The **plastic potential field** (background colour) encodes the scalar distance to the yield surface: positive values indicate yielded material, negative values sub-yield (elastic or viscous) material.
+- The **return-direction arrows** illustrate where a stress state outside the yield surface would be mapped back during a closest-point return-mapping algorithm. Their inclination relative to the yield surface normal reflects the degree of non-associativity, governed by the dilation angle.
+
+The package is intended for teaching and research in geomechanics and computational plasticity. It is not a standalone constitutive solver.
 
 ## Features
 
 ![Example usage](media/example_usage_final.gif)
 
-- Interactive sliders for cohesion, friction angle, tensile limit, and dilation angle.
-- Optional Full Drucker-Prager mode.
-- Yield surface, reference DP line, and plastic potential field visualization.
-- Construction geometry and return-direction arrows.
+- Interactive sliders for cohesion (C), friction angle (ϕ), tensile limit (pT), and dilation angle (ψ).
+- Optional Full Drucker-Prager mode (tensile limit locked to cone apex).
+- Dropdown menu to switch colormaps interactively, with an invert toggle.
+- Yield surface, reference DP line, and plastic potential field visualisation.
+- Construction geometry overlay and return-direction arrows (togglable).
+- **CSV import**: drag-and-drop or load a `.csv` file of stress points (P [MPa]; Shear [MPa]) to overlay them on the diagram. Points are automatically classified as:
+  - *Elastic / Viscous* — inside the yield surface (no plastic yielding)
+  - *Mode 1* — plastic on the tensile cap
+  - *Mode 2* — plastic on the Drucker-Prager shear envelope
+- Classification and plastic-point counter update live when sliders are adjusted.
 
 ## Installation
 

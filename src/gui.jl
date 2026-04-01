@@ -1,4 +1,40 @@
-function adaptive_figure_size(; frac_w = 0.72, frac_h = 0.82, min_w = 900, min_h = 700, max_w = 1600, max_h = 1200)
+# Evaluate the yield surface state for a single (P, τ) point.
+# Returns (F, mode) where mode = 0 for elastic, 1 for cap plasticity, 2 for DP plasticity.
+function eval_yield_state(P::Real, τ::Real, C::Real, ϕ::Real, pT::Real)
+    k  = sind(ϕ); c = C * cosd(ϕ); a = sqrt(1.0 + k^2)
+    py = (pT + c/a) / (1.0 - k/a)
+    R  = py - pT
+    pd = py - R * k / a
+    τd = k * pd + c
+    tol = 1e-7
+    has_yield_cap = R > tol && τd > tol && abs(py - pd) > tol
+    in_cap = has_yield_cap && (τ * (py - pd) < (py - P) * τd)
+    F = in_cap ? a * (sqrt(τ^2 + (P - py)^2) - R) : τ - k*P - c
+    if F < 0.0
+        return F, 0
+    end
+    return F, in_cap ? 1 : 2
+end
+
+# Parse a CSV with format  P[MPa]; Shear[MPa]  (header row is skipped automatically).
+function parse_csv_points(path::AbstractString)
+    points = Point2f[]
+    open(path) do io
+        for line in eachline(io)
+            line = strip(line)
+            isempty(line) && continue
+            parts = split(line, ';')
+            length(parts) < 2 && continue
+            P = tryparse(Float64, strip(parts[1]))
+            τ = tryparse(Float64, strip(parts[2]))
+            (P === nothing || τ === nothing) && continue   # skip header / bad rows
+            push!(points, Point2f(P, τ))
+        end
+    end
+    return points
+end
+
+function adaptive_figure_size(; frac_w = 0.82, frac_h = 0.88, min_w = 1100, min_h = 820, max_w = 1900, max_h = 1400)
     try
         monitor = GLMakie.GLFW.GetPrimaryMonitor()
         mode = GLMakie.GLFW.GetVideoMode(monitor)
@@ -8,20 +44,20 @@ function adaptive_figure_size(; frac_w = 0.72, frac_h = 0.82, min_w = 900, min_h
         return (w, h)
     catch
         # Headless/unsupported backend fallback.
-        return (1200, 950)
+        return (1400, 1050)
     end
 end
 
 function run_yield_plasticity(; colormap = :turbo)
     fig = Figure(size = adaptive_figure_size(), fontsize = 14)
 
-    ui_grid = fig[2, 1:2]
+    ui_grid = fig[2, 1]
     sg = SliderGrid(ui_grid[1, 1],
         (label = "Cohesion C [MPa]", range = 1.0:1.0:50.0, startvalue = 25.0),
         (label = "Friction ϕ [°]", range = 0.0:1.0:45.0, startvalue = 30.0),
         (label = "Tensile limit pT [MPa]", range = -20.0:1.0:0.0, startvalue = -5.0),
         (label = "Dilation ψ [°]", range = 0.0:1.0:45.0, startvalue = 10.0),
-        width = 700, tellwidth = false
+        tellwidth = true
     )
     C_obs, ϕ_obs, pT_obs, ψ_obs = [s.value for s in sg.sliders]
 
@@ -38,23 +74,38 @@ function run_yield_plasticity(; colormap = :turbo)
         full_dp ? -(C * cosd(ϕ)) / sind(ϕ) : pT
     end
 
+    # Store the last user-selected pT while Full Drucker-Prager is off
+    pT_tracking_paused = Ref(false)
+    pT_user_value = Ref(pT_obs[])
+    on(pT_obs) do val
+        pT_tracking_paused[] && return
+        dp_toggle.active[] && return
+        pT_user_value[] = val
+    end
+
     orig_color_active        = sg.sliders[3].color_active[]
     orig_color_active_dimmed = sg.sliders[3].color_active_dimmed[]
     orig_color_inactive      = sg.sliders[3].color_inactive[]
 
     on(dp_toggle.active; update=true) do full_dp
         if full_dp
+            pT_tracking_paused[] = true
             sg.sliders[3].color_active[]        = RGBAf(0.2, 0.5, 1.0, 0.25)
             sg.sliders[3].color_active_dimmed[] = RGBAf(0.5, 0.7, 1.0, 0.25)
             sg.sliders[3].color_inactive[]      = RGBAf(0.75, 0.75, 0.75, 0.25)
             target = round(Int, pT_eff_obs[])
             sg.sliders[3].range[] = min(target, -20):1:0
             set_close_to!(sg.sliders[3], target)
+            pT_tracking_paused[] = false
         else
+            restore_pT = pT_user_value[]
+            pT_tracking_paused[] = true
             sg.sliders[3].color_active[]        = orig_color_active
             sg.sliders[3].color_active_dimmed[] = orig_color_active_dimmed
             sg.sliders[3].color_inactive[]      = orig_color_inactive
             sg.sliders[3].range[] = -20.0:1.0:0.0
+            set_close_to!(sg.sliders[3], restore_pT)
+            pT_tracking_paused[] = false
         end
     end
 
@@ -102,6 +153,8 @@ function run_yield_plasticity(; colormap = :turbo)
     x_grid = range(-30.0, 110.0, length=250)
     y_grid = range(0.0, 80.0, length=250)
 
+    cmap_obs = Observable{Any}(colormap)
+
     # --- Q Field ---
     Q_data = lift(C_obs, ϕ_obs, pT_eff_obs, ψ_obs) do C, ϕ, pT, ψ
         k = sind(ϕ); kf = sind(ψ); c_val = C * cosd(ϕ); a = sqrt(1 + k^2); b = sqrt(1 + kf^2)
@@ -125,7 +178,7 @@ function run_yield_plasticity(; colormap = :turbo)
         end for px in x_grid, py_val in y_grid]
     end
 
-    cf = contourf!(ax, x_grid, y_grid, Q_data, colormap = colormap, levels = 25, nan_color = :white)
+    cf = contourf!(ax, x_grid, y_grid, Q_data, colormap = cmap_obs, levels = 25, nan_color = :white)
 
     # --- Drucker-Prager Reference ---
     dp_line = lift(C_obs, ϕ_obs) do C, ϕ
@@ -171,11 +224,122 @@ function run_yield_plasticity(; colormap = :turbo)
 
     arrows2d!(ax.scene, lift(x->x[1], arrow_data), lift(x->x[2], arrow_data), color = :black, align = :tip, shaftwidth = 2, tipwidth = 6)
 
+    # --- CSV Points (reactive classification) ---
+    csv_raw_obs = Observable(Point2f[])
+
+    csv_classified_obs = lift(csv_raw_obs, C_obs, ϕ_obs, pT_eff_obs) do pts, C, ϕ, pT
+        elastic = Point2f[]; plastic_mode1 = Point2f[]; plastic_mode2 = Point2f[]
+        for pt in pts
+            _, mode = eval_yield_state(pt[1], pt[2], C, ϕ, pT)
+            if mode == 0
+                push!(elastic, pt)
+            elseif mode == 1
+                push!(plastic_mode1, pt)
+            else
+                push!(plastic_mode2, pt)
+            end
+        end
+        return elastic, plastic_mode1, plastic_mode2
+    end
+
+    csv_elastic_obs = lift(x -> x[1], csv_classified_obs)
+    csv_plastic_mode1_obs = lift(x -> x[2], csv_classified_obs)
+    csv_plastic_mode2_obs = lift(x -> x[3], csv_classified_obs)
+    csv_loaded_obs = lift(pts -> !isempty(pts), csv_raw_obs)
+
+    p_csv_elastic = scatter!(ax, csv_elastic_obs, color = (:seagreen,  0.8), marker = :circle, markersize = 9, strokecolor = :white, strokewidth = 0.5)
+    p_csv_mode1 = scatter!(ax, csv_plastic_mode1_obs, color = (:goldenrod2, 0.9), marker = :rect, markersize = 9, strokecolor = :white, strokewidth = 0.5)
+    p_csv_mode2 = scatter!(ax, csv_plastic_mode2_obs, color = (:orangered,  0.8), marker = :diamond, markersize = 10, strokecolor = :white, strokewidth = 0.5)
+
     # --- Colorbar & Legend ---
-    Colorbar(fig[1, 2], cf, label = "Plastic Potential Q [MPa]", width = 24, tellwidth = true)
-    colsize!(fig.layout, 1, Auto(1))
-    colsize!(fig.layout, 2, Fixed(90))
-    colgap!(fig.layout, 1, 8)
+    Colorbar(fig[1, 2], cf, label = "Plastic Potential Q [MPa]", width = 20, tellwidth = true)
+    colgap!(fig.layout, 1, 1)
+
+    # --- UI: Colormap Selection ---
+    colormap_ui = ui_grid[3, 1]
+    Label(colormap_ui[1, 1], "Colormap", fontsize = 14)
+    cmap_options = sort(Symbol[
+        :roma, :vik, :bam, :broc, :cork, :oleron, :lisbon, :tofino,
+        :batlow, :batlowW, :devon, :lajolla, :bamako, :nuuk, :hawaii,
+        :tokyo, :oslo, :lapaz, :acton, :buda, :turku, :davos,
+        :viridis, :magma, :plasma, :inferno, :cividis,
+        :balance, :delta, :curl, :diff, :tarn,
+        :turbo, :heat, :thermal, :solar, :haline, :deep, :dense, :matter, :speed, :amp, :phase,
+    ]; by = s -> lowercase(String(s)))
+    if colormap ∉ cmap_options
+        push!(cmap_options, colormap)
+        sort!(cmap_options; by = s -> lowercase(String(s)))
+    end
+    default_cmap_idx = something(findfirst(==(colormap), cmap_options), 1)
+    cmap_menu = Menu(colormap_ui[1, 2], options = cmap_options, default = default_cmap_idx, width = 200)
+    cmap_invert = Toggle(colormap_ui[1, 3], active = false)
+    Label(colormap_ui[1, 4], "Invert", fontsize = 14)
+
+    function apply_cmap()
+        sel = cmap_menu.selection[]
+        sel === nothing && return
+        cmap_obs[] = cmap_invert.active[] ? Makie.Reverse(sel) : sel
+    end
+    on(cmap_menu.selection; update = true) do _; apply_cmap(); end
+    on(cmap_invert.active) do _; apply_cmap(); end
+
+    # --- UI: CSV Import ---
+    csv_ui = GridLayout()
+    ui_grid[4, 1] = csv_ui
+    Label(csv_ui[1, 1], "CSV file  (P[MPa]; Shear[MPa]):", fontsize = 14)
+    csv_path_box  = Textbox(csv_ui[1, 2], width = 360, placeholder = "File path — or drag & drop a .csv onto the window")
+    load_csv_btn  = Button(csv_ui[1, 3], label = "Load",  width = 90)
+    clear_csv_btn = Button(csv_ui[1, 4], label = "Clear", width = 90)
+    csv_status_obs = Observable("No file loaded")
+    Label(csv_ui[2, 1:4], csv_status_obs, color = :dimgray, tellwidth = false, tellheight = false)
+    rowsize!(csv_ui, 2, Fixed(24))
+
+    # Reactively update the plastic-domain counter whenever classification changes
+    on(csv_classified_obs) do (elastic, plastic_mode1, plastic_mode2)
+        isempty(csv_raw_obs[]) && return
+        n = length(csv_raw_obs[])
+        nplastic = length(plastic_mode1) + length(plastic_mode2)
+        csv_status_obs[] = "$(nplastic) / $n in plastic domain  |  mode 1: $(length(plastic_mode1))  |  mode 2: $(length(plastic_mode2))"
+    end
+
+    function _load_csv(path)
+        path = strip(String(path))
+        isempty(path) && (csv_status_obs[] = "No path entered"; return)
+        isfile(path)  || (csv_status_obs[] = "File not found: $(basename(path))"; return)
+        try
+            pts = parse_csv_points(path)
+            isempty(pts) && (csv_status_obs[] = "No valid rows found in $(basename(path))"; return)
+            csv_raw_obs[] = pts           # triggers reactive classification
+            _, plastic_mode1, plastic_mode2 = csv_classified_obs[]
+            nplastic = length(plastic_mode1) + length(plastic_mode2)
+            csv_status_obs[] = "$(basename(path)): $(nplastic) / $(length(pts)) plastic  |  mode 1: $(length(plastic_mode1))  |  mode 2: $(length(plastic_mode2))"
+        catch e
+            csv_status_obs[] = "Error: $(sprint(showerror, e))"
+        end
+    end
+
+    on(load_csv_btn.clicks) do _
+        txt = csv_path_box.stored_string[]
+        if txt === nothing || isempty(strip(String(txt)))
+            txt = csv_path_box.displayed_string[]
+        end
+        txt === nothing && (csv_status_obs[] = "No path entered"; return)
+        _load_csv(txt)
+    end
+
+    on(clear_csv_btn.clicks) do _
+        csv_raw_obs[]    = Point2f[]
+        csv_status_obs[] = "No file loaded"
+    end
+
+    # Drag-and-drop: accept the first dropped .csv file
+    on(events(fig.scene).dropped_files) do files
+        isempty(files) && return
+        path = first(files)
+        endswith(lowercase(path), ".csv") || (csv_status_obs[] = "Not a CSV: $(basename(path))"; return)
+        _load_csv(path)
+    end
+
     axislegend(ax,
         [p_yield, p_dp],
         ["Yield Surface", "Drucker-Prager"],
@@ -183,6 +347,17 @@ function run_yield_plasticity(; colormap = :turbo)
         backgroundcolor = (:white, 0.8),
         framevisible = true
     )
+    csv_legend = axislegend(ax,
+        [p_csv_elastic, p_csv_mode1, p_csv_mode2],
+        ["Elastic / Viscous", "Plastic Mode 1", "Plastic Mode 2"],
+        position = :lt,
+        backgroundcolor = (:white, 0.85),
+        framevisible = true,
+    )
+    csv_legend.blockscene.visible[] = false
+    on(csv_loaded_obs) do loaded
+        csv_legend.blockscene.visible[] = loaded
+    end
 
     hlines!(ax, 0, color = :black, alpha = 0.2); vlines!(ax, 0, color = :black, alpha = 0.2)
     xlims!(ax, -30, 110); ylims!(ax, 0, 80)
