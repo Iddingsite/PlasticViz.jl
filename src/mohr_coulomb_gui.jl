@@ -139,13 +139,12 @@ function run_mohr_coulomb(;
             return
         end
 
-        # Ceiling: shear failure threshold (skip in tensile regime)
+        # Ceiling: shear failure threshold
         s = sind(φ)
         abs(s - 1.0) < 1e-6 && return
         σ₃eff     = σ₃ - u
         σ₁eff_max = (2*c*cosd(φ) + σ₃eff*(1+s)) / (1-s)
         σ₁_max    = max(σ₃, σ₁eff_max + u)
-        σ₁_max ≤ 0.0 && return
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
         set_close_to!(sg.sliders[3], floor(σ₁_max))
