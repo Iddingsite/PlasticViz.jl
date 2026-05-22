@@ -82,7 +82,7 @@ end
 function run_mohr_coulomb(;
     c_default      = 15.0,
     phi_default    = 30.0,
-    sigma1_default = 80.0,
+    sigma1_default = 60.0,
     sigma3_default = 10.0
 )
     _fsz = adaptive_figure_size()
@@ -96,7 +96,7 @@ function run_mohr_coulomb(;
         (label = "Major principal stress σ₁ [MPa]",   range = -30.0:1.0:150.0, startvalue = sigma1_default),
         (label = "Minor principal stress σ₃ [MPa]",   range = -30.0:1.0:100.0, startvalue = sigma3_default),
         (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.5:30.0,  startvalue = 0.0),
-        (label = "Pore pressure u [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
+        (label = "Pore pressure Pf [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
         tellwidth = true
     )
     c_obs, φ_obs, σ₁_obs, σ₃_obs, T₀_obs, u_obs = [s.value for s in sg.sliders]
@@ -174,7 +174,7 @@ function run_mohr_coulomb(;
     state_sym_obs    = lift(s -> s[1], mohr_state_obs)
     tangent_obs      = lift(s -> [s[3]], mohr_state_obs)
     circle_color_obs = lift(state_sym_obs) do s
-        s == :safe ? :seagreen : s == :critical ? :darkorange : s == :tensile ? :purple : :crimson
+        s == :safe ? :seagreen : s == :critical ? :red : s == :tensile ? :purple : :crimson
     end
     # Tangent point decoration only meaningful for shear failure, not tensile
     shear_not_safe_obs = lift(s -> s == :critical || s == :failed, state_sym_obs)
@@ -220,14 +220,26 @@ function run_mohr_coulomb(;
     end
     lines!(ax_mohr, circle_pts_eff_obs, color = circle_color_obs, linewidth = 3)
 
-    # Coulomb failure lines — extended to cover negative σ (pore pressure shift)
-    σ_ext = range(-150.0, 200.0, length = 2)
-    lines!(ax_mohr,
-        lift(c_obs, φ_obs) do c, φ; [Point2f(s, c + s * tand(φ)) for s in σ_ext]; end,
-        color = :black, linewidth = 2)
-    lines!(ax_mohr,
-        lift(c_obs, φ_obs) do c, φ; [Point2f(s, -(c + s * tand(φ))) for s in σ_ext]; end,
-        color = :black, linewidth = 2, linestyle = :dash)
+    # Coulomb failure envelope: smooth circular arc at tensile cutoff + straight Coulomb line.
+    # Circle centred at (σ_py, 0) with radius R_cap passes through (−T₀, 0) and is tangent
+    # to τ = c + σ·tan(φ) at the pivot point (σ_py − R_cap·sinφ, R_cap·cosφ).
+    function _envelope_upper(c, φ, T₀)
+        sinφ = sind(φ); cosφ = cosd(φ); tanφ = tand(φ)
+        R_cap = (c*cosφ - T₀*sinφ) / (1.0 - sinφ)
+        if R_cap > 1e-6
+            σ_py  = R_cap - T₀
+            θ_end = atan(cosφ, -sinφ)          # angle at pivot relative to centre
+            θs    = range(Float64(π), θ_end, length = 80)
+            arc   = [Point2f(σ_py + R_cap*cos(θ), R_cap*sin(θ)) for θ in θs]
+            return vcat(arc, [Point2f(200.0, c + 200.0*tanφ)])
+        else
+            return [Point2f(-150.0, c - 150.0*tanφ), Point2f(200.0, c + 200.0*tanφ)]
+        end
+    end
+    envelope_upper_obs = lift(_envelope_upper, c_obs, φ_obs, T₀_obs)
+    envelope_lower_obs = lift(pts -> [Point2f(p[1], -p[2]) for p in pts], envelope_upper_obs)
+    lines!(ax_mohr, envelope_upper_obs, color = :black, linewidth = 2)
+    lines!(ax_mohr, envelope_lower_obs, color = :black, linewidth = 2, linestyle = :dash)
 
     # Tracks the current bottom y limit of the Mohr axis (updated by _update_mohr_limits!)
     y_bottom_obs = Observable(-50.0)
