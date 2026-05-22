@@ -185,11 +185,13 @@ function run_mohr_coulomb(;
         position = lift(c -> Point2f(2, c + 2), c_obs),
         fontsize = 12, color = :darkblue, align = (:left, :bottom))
 
-    # φ label on the failure line
+    # φ label on the failure line — min x floor keeps it clear of the c label at x≈2
     text!(ax_mohr,
         lift(φ -> "φ = $(round(Int, φ))°", φ_obs),
-        position = lift((c, φ, σ₁) -> Point2f(σ₁ * 0.15, c + σ₁ * 0.15 * tand(φ) + 4),
-                        c_obs, φ_obs, σ₁_obs),
+        position = lift((c, φ, σ₁) -> begin
+            x = max(σ₁ * 0.3, 12.0)
+            Point2f(x, c + x * tand(φ) + 4)
+        end, c_obs, φ_obs, σ₁_obs),
         fontsize = 12, color = :black)
 
     # Failure line formula label
