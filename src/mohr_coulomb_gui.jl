@@ -181,7 +181,7 @@ function run_mohr_coulomb(;
         lift(c -> [Point2f(0, c)], c_obs),
         color = :darkblue, markersize = 9)
     text!(ax_mohr,
-        lift(c -> "c = $(round(Int, c)) MPa", c_obs),
+        lift(c -> "c = \n$(round(Int, c)) MPa", c_obs),
         position = lift(c -> Point2f(-8, c + 3), c_obs),
         fontsize = 12, color = :darkblue, align = (:right, :bottom))
 
