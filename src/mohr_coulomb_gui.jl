@@ -206,5 +206,61 @@ function run_mohr_coulomb(;
     on(σ₃_obs) do _; _update_mohr_limits!(); end
     _update_mohr_limits!()
 
+    # Row 2: failure-plane block sketch
+    ax_block = Axis(fig[2, 1], aspect = DataAspect())
+    hidedecorations!(ax_block)
+    hidespines!(ax_block)
+
+    block_geo_obs = lift(φ_obs, σ₁_obs, σ₃_obs) do φ, σ₁, σ₃
+        failure_block_geometry(φ, σ₁, σ₃)
+    end
+
+    # Material sample rectangle
+    poly!(ax_block,
+        [Point2f(-1,-1), Point2f(1,-1), Point2f(1,1), Point2f(-1,1)],
+        color = (:steelblue, 0.12), strokecolor = :black, strokewidth = 2)
+
+    # Failure plane (dashed red line, angle θ)
+    lines!(ax_block,
+        lift(geo -> [geo.plane_pts[1], geo.plane_pts[2]], block_geo_obs),
+        color = :red, linewidth = 2.5, linestyle = :dash)
+
+    # σ₁ arrows (vertical, compressive — navy)
+    arrows!(ax_block,
+        lift(geo -> geo.σ₁_tails, block_geo_obs),
+        lift(geo -> geo.σ₁_vecs,  block_geo_obs),
+        color = :navy, linewidth = 1.5, arrowsize = 12)
+
+    # σ₃ arrows (horizontal, compressive — orange; empty vector when σ₃ ≈ 0)
+    arrows!(ax_block,
+        lift(geo -> geo.σ₃_tails, block_geo_obs),
+        lift(geo -> geo.σ₃_vecs,  block_geo_obs),
+        color = :darkorange, linewidth = 1.5, arrowsize = 12)
+
+    # Stress value labels
+    text!(ax_block,
+        lift(σ₁ -> "σ₁ = $(round(Int, σ₁)) MPa", σ₁_obs),
+        position = Point2f(0, 2.1), align = (:center, :bottom),
+        fontsize = 13, color = :navy)
+    text!(ax_block,
+        lift(σ₃ -> "σ₃ = $(round(Int, σ₃)) MPa", σ₃_obs),
+        position = Point2f(2.2, 0), align = (:left, :center),
+        fontsize = 13, color = :darkorange)
+
+    # θ angle label near bottom-left of block
+    text!(ax_block,
+        lift(geo -> "θ = 45° + φ/2 = $(round(Int, geo.θ))°", block_geo_obs),
+        position = Point2f(-0.9, -0.85),
+        fontsize = 12, color = :red)
+
+    # Static teaching sentence below the block
+    text!(ax_block,
+        "The failure plane orientation depends only on φ, not on cohesion c.",
+        position = Point2f(0, -1.75), align = (:center, :top),
+        fontsize = 12, color = (:black, 0.65), font = :italic)
+
+    xlims!(ax_block, -2.5, 2.8)
+    ylims!(ax_block, -2.1, 2.2)
+
     display(fig)
 end
