@@ -182,7 +182,7 @@ function run_mohr_coulomb(;
         color = :darkblue, markersize = 9)
     text!(ax_mohr,
         lift(c -> "c = $(round(Int, c)) MPa", c_obs),
-        position = lift(c -> Point2f(2, c + 2), c_obs),
+        position = lift(c -> Point2f(2, c + 5), c_obs),
         fontsize = 12, color = :darkblue, align = (:left, :bottom))
 
     # φ label on the failure line — min x floor keeps it clear of the c label at x≈2
