@@ -201,15 +201,18 @@ function run_mohr_coulomb(;
         position = lift(σ₃ -> Point2f(σ₃, -2), σ₃_obs),
         fontsize = 11, align = (:center, :top), color = :gray)
 
-    # Reactive axis limits
+    # Reactive axis limits — also account for the envelope formula label position
     function _update_mohr_limits!()
-        σ₁, σ₃ = σ₁_obs[], σ₃_obs[]
-        R    = (σ₁ - σ₃) / 2.0
+        σ₁, σ₃, c, φ = σ₁_obs[], σ₃_obs[], c_obs[], φ_obs[]
+        R       = (σ₁ - σ₃) / 2.0
+        y_label = c + σ₁ * 0.5 * tand(φ) + 12.0   # formula label y + margin
         xlims!(ax_mohr, min(0.0, σ₃) - 5.0, σ₁ * 1.1 + 10.0)
-        ylims!(ax_mohr, -(R * 1.5 + 10.0), R * 1.5 + 10.0)
+        ylims!(ax_mohr, -(R * 1.5 + 10.0), max(R * 1.5 + 10.0, y_label))
     end
     on(σ₁_obs) do _; _update_mohr_limits!(); end
     on(σ₃_obs) do _; _update_mohr_limits!(); end
+    on(c_obs)  do _; _update_mohr_limits!(); end
+    on(φ_obs)  do _; _update_mohr_limits!(); end
     _update_mohr_limits!()
 
     # Row 2: failure-plane block sketch
@@ -245,15 +248,22 @@ function run_mohr_coulomb(;
         color = :darkorange, shaftwidth = 2, tipwidth = 8,
         visible = σ₃_visible_obs)
 
-    # Stress value labels
+    # Stress value labels — positioned just above/right of arrow tails (reactive)
     text!(ax_block,
         lift(σ₁ -> "σ₁ = $(round(Int, σ₁)) MPa", σ₁_obs),
-        position = Point2f(0, 2.1), align = (:center, :bottom),
-        fontsize = 13, color = :navy)
+        position = lift(σ₁_obs) do σ₁
+            l = clamp(0.15f0 + 0.4f0 * Float32(σ₁) / 150f0, 0.15f0, 0.55f0)
+            Point2f(0, 1f0 + l + 0.2f0)
+        end,
+        align = (:center, :bottom), fontsize = 13, color = :navy)
     text!(ax_block,
         lift(σ₃ -> "σ₃ = $(round(Int, σ₃)) MPa", σ₃_obs),
-        position = Point2f(2.2, 0), align = (:left, :center),
-        fontsize = 13, color = :darkorange)
+        position = lift(σ₃_obs) do σ₃
+            l = 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0
+            Point2f(1f0 + l + 0.15f0, 0)
+        end,
+        align = (:left, :center), fontsize = 13, color = :darkorange,
+        visible = σ₃_visible_obs)
 
     # θ angle label near bottom-left of block
     text!(ax_block,
@@ -261,14 +271,25 @@ function run_mohr_coulomb(;
         position = Point2f(-0.9, -0.85),
         fontsize = 12, color = :red)
 
-    # Static teaching sentence below the block
+    # Teaching sentence below the block
     text!(ax_block,
         "The failure plane orientation depends only on φ, not on cohesion c.",
-        position = Point2f(0, -1.75), align = (:center, :top),
+        position = Point2f(0, -1.6), align = (:center, :top),
         fontsize = 12, color = (:black, 0.65), font = :italic)
 
-    xlims!(ax_block, -2.5, 2.8)
-    ylims!(ax_block, -2.1, 2.2)
+    # Reactive limits — ensure arrow tails + labels + teaching text always fit
+    function _update_block_limits!()
+        σ₁, σ₃ = σ₁_obs[], σ₃_obs[]
+        l₁ = clamp(0.15f0 + 0.4f0 * Float32(σ₁) / 150f0, 0.15f0, 0.55f0)
+        l₃ = 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0
+        y_top   = Float64(1f0 + l₁) + 0.8   # arrow tail + label height + margin
+        x_right = Float64(1f0 + l₃) + 3.0   # arrow tail + "σ₃ = 100 MPa" text + margin
+        xlims!(ax_block, -2.8, x_right)
+        ylims!(ax_block, -3.0, y_top)
+    end
+    on(σ₁_obs) do _; _update_block_limits!(); end
+    on(σ₃_obs) do _; _update_block_limits!(); end
+    _update_block_limits!()
 
     # Wire status label to state
     on(state_sym_obs; update = true) do s
