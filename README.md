@@ -19,7 +19,7 @@ Pkg.add(url="https://github.com/Iddingsite/PlasticViz.jl")
 
 An interactive GUI for teaching the Mohr-Coulomb failure criterion, designed for students.
 
-![Example usage](media/example_usage_mohr_coulomb.gif)
+<img src="media/example_usage_mohr_coulomb.gif" width="500"/>
 
 It displays the Mohr circle in normal stress–shear stress space alongside a block sketch showing the orientation of the failure plane. The failure criterion is evaluated in **effective stress space** (σ − u). The circle and block sketch change colour according to the failure state:
 
@@ -58,7 +58,7 @@ run_mohr_coulomb(c_default = 20.0, phi_default = 25.0,
 
 An interactive visualiser for the P–τ meridional stress space, implementing the smooth linearised Drucker-Prager shear envelope with a circular tensile cap following Popov et al. (2025).
 
-![Example usage](media/example_usage_meridional.gif)
+<img src="media/example_usage_meridional.gif" width="500"/>
 
 In plasticity modelling, the P–τ meridional plane shows how a material transitions from sub-yield behaviour (elastic or viscous) to plastic flow as confining pressure and deviatoric stress change:
 
