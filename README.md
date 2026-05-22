@@ -19,7 +19,7 @@ Pkg.add(url="https://github.com/Iddingsite/PlasticViz.jl")
 
 An interactive GUI for teaching the Mohr-Coulomb failure criterion, designed for students.
 
-![Example usage](media/example_usage.gif)
+![Example usage](media/example_usage_mohr_coulomb.gif)
 
 It displays the Mohr circle in normal stress–shear stress space alongside a block sketch showing the orientation of the failure plane. The circle changes colour as the stress state approaches and crosses the Coulomb failure envelope:
 
