@@ -75,8 +75,8 @@ function run_mohr_coulomb(;
     sg = SliderGrid(ui_grid[1, 1],
         (label = "Cohesion c [MPa]",      range = 0.0:1.0:50.0,  startvalue = c_default),
         (label = "Friction angle φ [°]",   range = 0.0:1.0:45.0,  startvalue = phi_default),
-        (label = "Major stress σ₁ [MPa]",  range = 0.0:1.0:150.0, startvalue = sigma1_default),
-        (label = "Minor stress σ₃ [MPa]",  range = 0.0:1.0:100.0, startvalue = sigma3_default),
+        (label = "Major principal stress σ₁ [MPa]",  range = 0.0:1.0:150.0, startvalue = sigma1_default),
+        (label = "Minor principal stress σ₃ [MPa]",  range = 0.0:1.0:100.0, startvalue = sigma3_default),
         tellwidth = true
     )
     c_obs, φ_obs, σ₁_obs, σ₃_obs = [s.value for s in sg.sliders]
@@ -105,7 +105,7 @@ function run_mohr_coulomb(;
         color = status_color_obs, fontsize = 14, font = :bold,
         tellwidth = false)
     Label(ui_grid[3, 1],
-        "σ₃ is automatically limited to σ₁ — confining stress cannot exceed axial stress",
+        "σ₃ is automatically limited to σ₁ — minor principal stress cannot exceed major principal stress",
         fontsize = 11, color = (:black, 0.5), font = :italic, tellwidth = false)
 
     # Derived observables
