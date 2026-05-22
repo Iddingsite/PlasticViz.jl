@@ -56,9 +56,9 @@ using PlasticViz
         @test length(geo.σ₁_vecs)  == 6
     end
 
-    @testset "failure_block_geometry — zero σ₃ yields no σ₃ arrows" begin
+    @testset "failure_block_geometry — zero σ₃ hides σ₃ arrows" begin
         geo = PlasticViz.failure_block_geometry(30.0, 80.0, 0.0)
-        @test isempty(geo.σ₃_tails)
+        @test !geo.show_σ₃
     end
 
     @testset "mohr_failure_state — critical" begin

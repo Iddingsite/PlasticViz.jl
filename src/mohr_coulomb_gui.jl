@@ -50,20 +50,16 @@ function failure_block_geometry(φ::Real, σ₁::Real, σ₃::Real)
     σ₁_vecs  = vcat([Vec2f(0f0, -σ₁_len) for _ in xs],
                     [Vec2f(0f0,  σ₁_len) for _ in xs])
 
-    if σ₃ < 0.5
-        σ₃_tails = Point2f[]
-        σ₃_vecs  = Vec2f[]
-    else
-        ys = (-0.4f0, 0f0, 0.4f0)
-        σ₃_tails = vcat([Point2f( 1f0 + σ₃_len, y) for y in ys],
-                        [Point2f(-1f0 - σ₃_len, y) for y in ys])
-        σ₃_vecs  = vcat([Vec2f(-σ₃_len, 0f0) for _ in ys],
-                        [Vec2f( σ₃_len, 0f0) for _ in ys])
-    end
+    ys = (-0.4f0, 0f0, 0.4f0)
+    σ₃_tails = vcat([Point2f( 1f0 + σ₃_len, y) for y in ys],
+                    [Point2f(-1f0 - σ₃_len, y) for y in ys])
+    σ₃_vecs  = vcat([Vec2f(-σ₃_len, 0f0) for _ in ys],
+                    [Vec2f( σ₃_len, 0f0) for _ in ys])
 
     return (plane_pts=(p1, p2), θ=θ,
             σ₁_tails=σ₁_tails, σ₁_vecs=σ₁_vecs,
-            σ₃_tails=σ₃_tails, σ₃_vecs=σ₃_vecs)
+            σ₃_tails=σ₃_tails, σ₃_vecs=σ₃_vecs,
+            show_σ₃=σ₃ >= 0.5)
 end
 
 function run_mohr_coulomb(;
@@ -238,11 +234,13 @@ function run_mohr_coulomb(;
         lift(geo -> geo.σ₁_vecs,  block_geo_obs),
         color = :navy, shaftwidth = 2, tipwidth = 8)
 
-    # σ₃ arrows (horizontal, compressive — orange; empty vector when σ₃ ≈ 0)
+    # σ₃ arrows (horizontal, compressive — orange; hidden via visible when σ₃ ≈ 0)
+    σ₃_visible_obs = lift(geo -> geo.show_σ₃, block_geo_obs)
     arrows2d!(ax_block.scene,
         lift(geo -> geo.σ₃_tails, block_geo_obs),
         lift(geo -> geo.σ₃_vecs,  block_geo_obs),
-        color = :darkorange, shaftwidth = 2, tipwidth = 8)
+        color = :darkorange, shaftwidth = 2, tipwidth = 8,
+        visible = σ₃_visible_obs)
 
     # Stress value labels
     text!(ax_block,
