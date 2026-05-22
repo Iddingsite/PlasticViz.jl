@@ -11,7 +11,7 @@ function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real; T₀::R
     secφ = sqrt(1.0 + tanφ^2)
     d    = (c + P * tanφ) / secφ          # perp. distance centre → line
     tol  = 0.1                             # half a slider step — makes boundary states reachable
-    state = if σ₃ ≤ -T₀
+    state = if σ₃ ≤ -T₀ + tol
         :tensile
     elseif R > d - tol
         :critical
@@ -154,7 +154,9 @@ function run_mohr_coulomb(;
         σ₁_max    = max(σ₃, σ₁eff_max + u, σ₁_floor)   # never push σ₁ below tensile floor
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
-        set_close_to!(sg.sliders[3], floor(σ₁_max * 10 + 1e-9) / 10)
+        # Clamp to σ₃ after rounding to avoid FP edge case where floor drops below σ₃
+        snap_val = max(floor(σ₁_max * 10 + 1e-9) / 10, σ₃_obs[])
+        set_close_to!(sg.sliders[3], snap_val)
         σ₁_resetting[] = false
     end
     on(σ₁_obs) do _; _snap_σ₁!(); end
