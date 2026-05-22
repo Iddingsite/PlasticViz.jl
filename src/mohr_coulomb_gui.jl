@@ -105,22 +105,31 @@ function run_mohr_coulomb(;
     σ₁eff_obs = lift((σ₁, u) -> σ₁ - u, σ₁_obs, u_obs)
     σ₃eff_obs = lift((σ₃, u) -> σ₃ - u, σ₃_obs, u_obs)
 
-    # σ₃ ≤ σ₁ constraint (total stresses)
+    # σ₃ two-sided constraint
+    #   Ceiling — σ₃ ≤ σ₁ (total stresses)
+    #   Floor   — σ₃eff ≥ −T₀: leftmost point of circle cannot cross the tensile cap
     σ₃_resetting = Ref(false)
-    on(sg.sliders[4].value) do _
+    function _snap_σ₃!()
         σ₃_resetting[] && return
+        u, T₀ = u_obs[], T₀_obs[]
         if σ₃_obs[] > σ₁_obs[]
             σ₃_resetting[] = true
             set_close_to!(sg.sliders[4], floor(σ₁_obs[]))
             σ₃_resetting[] = false
+            return
+        end
+        σ₃_floor = u - T₀
+        if σ₃_obs[] < σ₃_floor
+            σ₃_resetting[] = true
+            set_close_to!(sg.sliders[4], ceil(σ₃_floor))
+            σ₃_resetting[] = false
         end
     end
-    on(σ₁_obs; update = true) do σ₁
-        σ₃_obs[] > σ₁ || return
-        σ₃_resetting[] = true
-        set_close_to!(sg.sliders[4], floor(σ₁))
-        σ₃_resetting[] = false
-    end
+    on(σ₃_obs) do _; _snap_σ₃!(); end
+    on(σ₁_obs) do _; _snap_σ₃!(); end
+    on(u_obs)  do _; _snap_σ₃!(); end
+    on(T₀_obs) do _; _snap_σ₃!(); end
+    _snap_σ₃!()
 
     # σ₁ cap: two-sided constraint
     #   Floor — σ₁eff ≥ −T₀: prevents the whole circle from sitting left of the tensile cutoff
