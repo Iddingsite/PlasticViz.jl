@@ -77,7 +77,7 @@ function run_mohr_coulomb(;
     sigma3_default = 10.0
 )
     _fsz = adaptive_figure_size()
-    fig = Figure(size = (_fsz[2], _fsz[2]), fontsize = 14)
+    fig = Figure(size = (_fsz[2], _fsz[2]), fontsize = 12)
 
     # Row 2: controls (spans both columns)
     ui_grid = fig[2, 1:2]
@@ -88,7 +88,6 @@ function run_mohr_coulomb(;
         (label = "Minor principal stress σ₃ [MPa]",   range = 0.0:1.0:100.0, startvalue = sigma3_default),
         (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.5:30.0,  startvalue = 0.0),
         (label = "Pore pressure u [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
-        rowgap = 2,
         tellwidth = true
     )
     c_obs, φ_obs, σ₁_obs, σ₃_obs, T₀_obs, u_obs = [s.value for s in sg.sliders]
