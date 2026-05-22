@@ -68,7 +68,8 @@ function run_mohr_coulomb(;
     sigma1_default = 80.0,
     sigma3_default = 10.0
 )
-    fig = Figure(size = adaptive_figure_size(), fontsize = 14)
+    _fsz = adaptive_figure_size()
+    fig = Figure(size = (_fsz[2], _fsz[2]), fontsize = 14)
 
     # Row 2: controls (spans both columns)
     ui_grid = fig[2, 1:2]
@@ -123,7 +124,7 @@ function run_mohr_coulomb(;
     ax_mohr = Axis(fig[1, 1],
         title  = "Mohr Circle and Coulomb Failure Envelope",
         xlabel = "Normal stress σ [MPa]",
-        ylabel = "Shear stress τ [MPa]",
+        ylabel = "Shear stress τ [MPa]\n(τ_max = (σ₁ − σ₃) / 2)",
         aspect = DataAspect()
     )
     hlines!(ax_mohr, 0, color = (:black, 0.25))
@@ -194,12 +195,12 @@ function run_mohr_coulomb(;
     vlines!(ax_mohr,
         lift(σ₁_obs, σ₃_obs) do σ₁, σ₃; [σ₃, σ₁]; end,
         color = (:gray, 0.4), linestyle = :dot, linewidth = 1.5)
-    text!(ax_mohr, lift(σ₁ -> "σ₁=$(round(Int, σ₁))", σ₁_obs),
-        position = lift(σ₁ -> Point2f(σ₁, -2), σ₁_obs),
-        fontsize = 11, align = (:center, :top), color = :gray)
-    text!(ax_mohr, lift(σ₃ -> "σ₃=$(round(Int, σ₃))", σ₃_obs),
-        position = lift(σ₃ -> Point2f(σ₃, -2), σ₃_obs),
-        fontsize = 11, align = (:center, :top), color = :gray)
+    text!(ax_mohr, lift(σ₁ -> "σ₁ = $(round(Int, σ₁)) MPa", σ₁_obs),
+        position = lift(σ₁ -> Point2f(σ₁ + 2.0, 2.0), σ₁_obs),
+        fontsize = 11, align = (:left, :bottom), color = :gray)
+    text!(ax_mohr, lift(σ₃ -> "σ₃ = $(round(Int, σ₃)) MPa", σ₃_obs),
+        position = lift(σ₃ -> Point2f(σ₃ + 2.0, -2.0), σ₃_obs),
+        fontsize = 11, align = (:left, :top), color = :gray)
 
     # Reactive axis limits — equal x/y range so DataAspect gives a square content
     # area, leaving stable room above for the axis title regardless of slider values.
