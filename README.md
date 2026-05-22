@@ -21,11 +21,13 @@ An interactive GUI for teaching the Mohr-Coulomb failure criterion, designed for
 
 ![Example usage](media/example_usage_mohr_coulomb.gif)
 
-It displays the Mohr circle in normal stress–shear stress space alongside a block sketch showing the orientation of the failure plane. The circle changes colour as the stress state approaches and crosses the Coulomb failure envelope:
+It displays the Mohr circle in normal stress–shear stress space alongside a block sketch showing the orientation of the failure plane. The failure criterion is evaluated in **effective stress space** (σ − u). The circle and block sketch change colour according to the failure state:
 
-- **Green** — stress state is safe (inside the failure envelope)
-- **Orange** — critical (circle is tangent to the envelope)
-- **Red** — failed (circle crosses the envelope)
+- **Green** — safe (stress state inside the failure envelope)
+- **Red** — shear failure (Mohr circle reaches the Coulomb envelope)
+- **Purple** — tensile failure (effective σ₃ falls below the tensile strength −T₀)
+
+When pore pressure u > 0, a faint dotted total-stress circle is shown alongside the solid effective-stress circle. The failure envelope includes a circular tensile cap that connects smoothly to the Coulomb line at the tensile cutoff −T₀.
 
 The failure plane angle θ = 45° + φ/2 and the maximum shear stress τ_max = (σ₁ − σ₃)/2 are annotated live.
 
@@ -45,14 +47,18 @@ run_mohr_coulomb(c_default = 20.0, phi_default = 25.0,
 |-----------|--------|------|-------------|
 | Cohesion | c | MPa | Shear strength at zero confining pressure. Sets the τ-axis intercept of the Coulomb failure envelope. |
 | Friction angle | φ | ° | Controls the slope of the failure envelope. Higher values mean strength increases more steeply with confining pressure. |
-| Major principal stress | σ₁ | MPa | Largest principal stress applied to the sample. Sets the rightmost point of the Mohr circle. |
-| Minor principal stress | σ₃ | MPa | Smallest principal stress. Sets the leftmost point of the Mohr circle. Cannot exceed σ₁. |
+| Major principal stress | σ₁ | MPa | Largest principal stress applied to the sample. Sets the rightmost point of the Mohr circle. Capped at the shear failure threshold to prevent the circle from crossing the envelope. |
+| Minor principal stress | σ₃ | MPa | Smallest principal stress. Sets the leftmost point of the Mohr circle. Constrained to σ₃ ≤ σ₁ and σ₃ ≥ u − T₀. |
+| Tensile strength | T₀ | MPa | Uniaxial tensile strength. Sets the tensile cutoff at σ = −T₀. Triggers tensile (Mode I) failure when effective σ₃ falls below −T₀. |
+| Pore pressure | Pf | MPa | Fluid pore pressure. Shifts both principal stresses to effective values σ' = σ − u for failure evaluation. A faint dotted total-stress circle is shown when u > 0. |
 
 ---
 
 ## Meridional Yield Surface GUI
 
 An interactive visualiser for the P–τ meridional stress space, implementing the smooth linearised Drucker-Prager shear envelope with a circular tensile cap following Popov et al. (2025).
+
+![Example usage](media/example_usage_meridional.gif)
 
 In plasticity modelling, the P–τ meridional plane shows how a material transitions from sub-yield behaviour (elastic or viscous) to plastic flow as confining pressure and deviatoric stress change:
 
