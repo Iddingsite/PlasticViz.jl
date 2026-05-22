@@ -70,8 +70,8 @@ function run_mohr_coulomb(;
 )
     fig = Figure(size = adaptive_figure_size(), fontsize = 14)
 
-    # Row 3: controls
-    ui_grid = fig[3, 1]
+    # Row 2: controls (spans both columns)
+    ui_grid = fig[2, 1:2]
     sg = SliderGrid(ui_grid[1, 1],
         (label = "Cohesion c [MPa]",      range = 0.0:1.0:50.0,  startvalue = c_default),
         (label = "Friction angle φ [°]",   range = 0.0:1.0:45.0,  startvalue = phi_default),
@@ -215,8 +215,8 @@ function run_mohr_coulomb(;
     on(φ_obs)  do _; _update_mohr_limits!(); end
     _update_mohr_limits!()
 
-    # Row 2: failure-plane block sketch
-    ax_block = Axis(fig[2, 1], aspect = DataAspect())
+    # Row 1 col 2: failure-plane block sketch
+    ax_block = Axis(fig[1, 2], aspect = DataAspect())
     hidedecorations!(ax_block)
     hidespines!(ax_block)
 
@@ -305,10 +305,8 @@ function run_mohr_coulomb(;
         end
     end
 
-    rowsize!(fig.layout, 1, Relative(0.55))
-    rowsize!(fig.layout, 2, Relative(0.30))
+    rowsize!(fig.layout, 1, Relative(0.82))
     rowgap!(fig.layout, 1, 8)
-    rowgap!(fig.layout, 2, 8)
 
     display(fig)
 end
