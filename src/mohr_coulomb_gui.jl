@@ -233,16 +233,16 @@ function run_mohr_coulomb(;
         color = :red, linewidth = 2.5, linestyle = :dash)
 
     # σ₁ arrows (vertical, compressive — navy)
-    arrows!(ax_block,
+    arrows2d!(ax_block.scene,
         lift(geo -> geo.σ₁_tails, block_geo_obs),
         lift(geo -> geo.σ₁_vecs,  block_geo_obs),
-        color = :navy, linewidth = 1.5, arrowsize = 12)
+        color = :navy, shaftwidth = 2, tipwidth = 8)
 
     # σ₃ arrows (horizontal, compressive — orange; empty vector when σ₃ ≈ 0)
-    arrows!(ax_block,
+    arrows2d!(ax_block.scene,
         lift(geo -> geo.σ₃_tails, block_geo_obs),
         lift(geo -> geo.σ₃_vecs,  block_geo_obs),
-        color = :darkorange, linewidth = 1.5, arrowsize = 12)
+        color = :darkorange, shaftwidth = 2, tipwidth = 8)
 
     # Stress value labels
     text!(ax_block,
