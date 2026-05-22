@@ -129,9 +129,11 @@ function run_mohr_coulomb(;
     )
 
     text!(ax_mohr,
-        0.05, 0.95,
+        0.02, 0.97,
         text = L"\tau_{\max} = \frac{\sigma_1 - \sigma_3}{2}",
-        space = :relative
+        space = :relative,
+        align = (:left, :top),
+        fontsize = 12
     )
     hlines!(ax_mohr, 0, color = (:black, 0.25))
     vlines!(ax_mohr, 0, color = (:black, 0.25))
@@ -235,7 +237,7 @@ function run_mohr_coulomb(;
     _update_mohr_limits!()
 
     # Row 1 col 2: failure-plane block sketch
-    ax_block = Axis(fig[1, 2], aspect = DataAspect())
+    ax_block = Axis(fig[1, 2])
     hidedecorations!(ax_block)
     hidespines!(ax_block)
 
@@ -284,11 +286,11 @@ function run_mohr_coulomb(;
         align = (:left, :center), fontsize = 13, color = :darkorange,
         visible = σ₃_visible_obs)
 
-    # θ angle label near bottom-left of block
+    # θ angle label just outside the block bottom edge (avoids failure-line overlap)
     text!(ax_block,
         lift(geo -> "θ = 45° + φ/2 = $(round(Int, geo.θ))°", block_geo_obs),
-        position = Point2f(-0.9, -0.85),
-        fontsize = 12, color = :red)
+        position = Point2f(-0.95, -1.08),
+        fontsize = 12, color = :red, align = (:left, :top))
 
     # Teaching sentence below the block
     text!(ax_block,
@@ -296,15 +298,15 @@ function run_mohr_coulomb(;
         position = Point2f(0, -1.6), align = (:center, :top),
         fontsize = 12, color = (:black, 0.65), font = :italic)
 
-    # Reactive limits — ensure arrow tails + labels + teaching text always fit
+    # Reactive limits — tighter margins so the block fills more of the panel
     function _update_block_limits!()
         σ₁, σ₃ = σ₁_obs[], σ₃_obs[]
         l₁ = clamp(0.15f0 + 0.4f0 * Float32(σ₁) / 150f0, 0.15f0, 0.55f0)
         l₃ = 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0
-        y_top   = Float64(1f0 + l₁) + 0.8   # arrow tail + label height + margin
-        x_right = Float64(1f0 + l₃) + 3.0   # arrow tail + "σ₃ = 100 MPa" text + margin
-        xlims!(ax_block, -2.8, x_right)
-        ylims!(ax_block, -3.0, y_top)
+        y_top   = Float64(1f0 + l₁) + 0.6   # arrow tail + label
+        x_right = Float64(1f0 + l₃) + 1.8   # arrow tail + σ₃ text
+        xlims!(ax_block, -1.8, x_right)
+        ylims!(ax_block, -2.5, y_top)
     end
     on(σ₁_obs) do _; _update_block_limits!(); end
     on(σ₃_obs) do _; _update_block_limits!(); end
@@ -325,7 +327,7 @@ function run_mohr_coulomb(;
     end
 
     rowsize!(fig.layout, 1, Relative(0.82))
-    colsize!(fig.layout, 1, Relative(0.5))
+    colsize!(fig.layout, 1, Relative(0.45))
     rowgap!(fig.layout, 1, 8)
 
     display(fig)
