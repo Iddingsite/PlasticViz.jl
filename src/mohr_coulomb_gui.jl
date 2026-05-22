@@ -123,7 +123,8 @@ function run_mohr_coulomb(;
     ax_mohr = Axis(fig[1, 1],
         title  = "Mohr Circle and Coulomb Failure Envelope",
         xlabel = "Normal stress σ [MPa]",
-        ylabel = "Shear stress τ [MPa]"
+        ylabel = "Shear stress τ [MPa]",
+        aspect = DataAspect()
     )
     hlines!(ax_mohr, 0, color = (:black, 0.25))
     vlines!(ax_mohr, 0, color = (:black, 0.25))
@@ -272,7 +273,7 @@ function run_mohr_coulomb(;
 
     # Teaching sentence below the block
     text!(ax_block,
-        "The failure plane orientation depends only on φ, not on cohesion c.",
+        "The failure plane orientation depends\n only on φ, not on cohesion c.",
         position = Point2f(0, -1.6), align = (:center, :top),
         fontsize = 12, color = (:black, 0.65), font = :italic)
 
@@ -305,6 +306,7 @@ function run_mohr_coulomb(;
     end
 
     rowsize!(fig.layout, 1, Relative(0.82))
+    colsize!(fig.layout, 1, Relative(0.5))
     rowgap!(fig.layout, 1, 8)
 
     display(fig)
