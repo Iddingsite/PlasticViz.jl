@@ -286,10 +286,11 @@ function run_mohr_coulomb(;
         align = (:left, :center), fontsize = 13, color = :darkorange,
         visible = σ₃_visible_obs)
 
-    # θ angle label just outside the block bottom edge (avoids failure-line overlap)
+    # θ angle label inside top-left of block (failure line always runs bottom-left→top-right,
+    # so the far top-left corner is clear at every angle)
     text!(ax_block,
         lift(geo -> "θ = 45° + φ/2 = $(round(Int, geo.θ))°", block_geo_obs),
-        position = Point2f(-0.95, -1.08),
+        position = Point2f(-0.95, 0.92),
         fontsize = 12, color = :red, align = (:left, :top))
 
     # Teaching sentence below the block
