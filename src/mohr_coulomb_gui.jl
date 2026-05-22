@@ -126,7 +126,7 @@ function run_mohr_coulomb(;
         xlabel = "Normal stress σ [MPa]",
         ylabel = "Shear stress τ [MPa]",
         aspect = DataAspect(),
-        backgroundcolor = RGBf(0.97, 0.97, 1.0)
+        backgroundcolor = RGBf(0.94, 0.96, 0.99)
     )
 
     text!(ax_mohr,
@@ -253,10 +253,13 @@ function run_mohr_coulomb(;
         [Point2f(-1,-1), Point2f(1,-1), Point2f(1,1), Point2f(-1,1)],
         color = (:steelblue, 0.12), strokecolor = :black, strokewidth = 2)
 
-    # Failure plane (dashed red line, angle θ)
+    # Failure plane (dashed red line, angle θ) — faint when safe, vivid when active
+    plane_color_obs = lift(state_sym_obs) do s
+        s == :safe ? (:red, 0.2) : (:red, 1.0)
+    end
     lines!(ax_block,
         lift(geo -> [geo.plane_pts[1], geo.plane_pts[2]], block_geo_obs),
-        color = :red, linewidth = 2.5, linestyle = :dash)
+        color = plane_color_obs, linewidth = 2.5, linestyle = :dash)
 
     # σ₁ arrows (vertical, compressive — navy)
     arrows2d!(ax_block.scene,
