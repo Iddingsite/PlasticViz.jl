@@ -68,8 +68,14 @@ using PlasticViz
     end
 
     @testset "mohr_failure_state — tensile failure" begin
-        # T₀=5 MPa, σ₃=-10 → σ₃ < -T₀ → tensile failure regardless of shear envelope
+        # T₀=5 MPa, σ₃=-10 → σ₃ ≤ -T₀+tol → tensile failure regardless of shear envelope
         state, _, _, _ = PlasticViz.mohr_failure_state(20.0, 30.0, 50.0, -10.0; T₀=5.0)
+        @test state == :tensile
+    end
+
+    @testset "mohr_failure_state — tensile at boundary" begin
+        # σ₃ = -T₀ exactly → tensile (slider sits at the floor, ≤ check with tol triggers)
+        state, _, _, _ = PlasticViz.mohr_failure_state(10.0, 30.0, 50.0, -5.0; T₀=5.0)
         @test state == :tensile
     end
 

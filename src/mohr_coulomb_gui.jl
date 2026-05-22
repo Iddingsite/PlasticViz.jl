@@ -10,8 +10,8 @@ function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real; T₀::R
     tanφ = tand(φ)
     secφ = sqrt(1.0 + tanφ^2)
     d    = (c + P * tanφ) / secφ          # perp. distance centre → line
-    tol  = 0.5                             # half a slider step — makes :critical reachable
-    state = if σ₃ < -T₀
+    tol  = 0.5                             # half a slider step — makes boundary states reachable
+    state = if σ₃ ≤ -T₀ + tol
         :tensile
     elseif R > d + tol
         :failed
