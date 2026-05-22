@@ -45,6 +45,20 @@ run_yield_plasticity()
 run_yield_plasticity(colormap = :viridis)
 ```
 
+## Mohr-Coulomb Teaching GUI
+
+An interactive two-panel GUI for teaching the Mohr-Coulomb failure criterion. Designed for students.
+
+```julia
+using PlasticViz
+
+run_mohr_coulomb()
+
+# Custom starting values
+run_mohr_coulomb(c_default = 20.0, phi_default = 25.0,
+                 sigma1_default = 60.0, sigma3_default = 5.0)
+```
+
 ## Parameters
 
 | Parameter | Symbol | Unit | Description |

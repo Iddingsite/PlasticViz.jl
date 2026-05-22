@@ -4,6 +4,7 @@ using GLMakie
 using LinearAlgebra
 
 export run_yield_plasticity
+export run_mohr_coulomb
 
 include("recipe.jl")
 include("gui.jl")
