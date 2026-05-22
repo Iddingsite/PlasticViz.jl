@@ -9,3 +9,9 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 GLMakie = "0.13.9"
+
+[extras]
+Test = "8dfed614-e22c-358e-ade6-8dd39e6a5f42"
+
+[targets]
+test = ["Test"]
