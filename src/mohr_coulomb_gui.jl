@@ -144,7 +144,7 @@ function run_mohr_coulomb(;
         abs(s - 1.0) < 1e-6 && return
         σ₃eff     = σ₃ - u
         σ₁eff_max = (2*c*cosd(φ) + σ₃eff*(1+s)) / (1-s)
-        σ₁_max    = max(σ₃, σ₁eff_max + u)
+        σ₁_max    = max(σ₃, σ₁eff_max + u, σ₁_floor)   # never push σ₁ below tensile floor
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
         set_close_to!(sg.sliders[3], floor(σ₁_max))
