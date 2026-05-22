@@ -201,13 +201,25 @@ function run_mohr_coulomb(;
         position = lift(σ₃ -> Point2f(σ₃, -2), σ₃_obs),
         fontsize = 11, align = (:center, :top), color = :gray)
 
-    # Reactive axis limits — also account for the envelope formula label position
+    # Reactive axis limits — equal x/y range so DataAspect gives a square content
+    # area, leaving stable room above for the axis title regardless of slider values.
     function _update_mohr_limits!()
         σ₁, σ₃, c, φ = σ₁_obs[], σ₃_obs[], c_obs[], φ_obs[]
-        R       = (σ₁ - σ₃) / 2.0
-        y_label = c + σ₁ * 0.5 * tand(φ) + 12.0   # formula label y + margin
-        xlims!(ax_mohr, min(0.0, σ₃) - 5.0, σ₁ * 1.1 + 10.0)
-        ylims!(ax_mohr, -(R * 1.5 + 10.0), max(R * 1.5 + 10.0, y_label))
+        R    = (σ₁ - σ₃) / 2.0
+        x_lo = min(0.0, σ₃) - 5.0
+        x_hi = σ₁ * 1.1 + 10.0
+        y_hi = max(R * 1.5 + 10.0, c + σ₁ * 0.5 * tand(φ) + 12.0)
+        # Pad whichever axis is shorter so both ranges are equal
+        x_range = x_hi - x_lo
+        y_range = 2.0 * y_hi
+        if x_range < y_range
+            extra = (y_range - x_range) / 2.0
+            x_lo -= extra;  x_hi += extra
+        else
+            y_hi = x_range / 2.0
+        end
+        xlims!(ax_mohr, x_lo, x_hi)
+        ylims!(ax_mohr, -y_hi, y_hi)
     end
     on(σ₁_obs) do _; _update_mohr_limits!(); end
     on(σ₃_obs) do _; _update_mohr_limits!(); end
