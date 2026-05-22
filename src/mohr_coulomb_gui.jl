@@ -125,7 +125,8 @@ function run_mohr_coulomb(;
         title  = "Mohr Circle and Coulomb Failure Envelope",
         xlabel = "Normal stress σ [MPa]",
         ylabel = "Shear stress τ [MPa]",
-        aspect = DataAspect()
+        aspect = DataAspect(),
+        backgroundcolor = RGBf(0.97, 0.97, 1.0)
     )
 
     text!(ax_mohr,
@@ -158,7 +159,7 @@ function run_mohr_coulomb(;
 
     # Tangent point (filled dot, visible only when not safe)
     scatter!(ax_mohr, tangent_obs,
-        color = :navy, markersize = 12,
+        color = :red, markersize = 12,
         strokecolor = :white, strokewidth = 1.5,
         visible = not_safe_obs)
 
@@ -167,36 +168,36 @@ function run_mohr_coulomb(;
         lift(σ₁_obs, σ₃_obs, mohr_state_obs) do σ₁, σ₃, s
             [Point2f((σ₁ + σ₃) / 2.0, 0), s[3]]
         end,
-        color = :navy, linewidth = 1.5, linestyle = :dash,
+        color = :red, linewidth = 1.5, linestyle = :dash,
         visible = not_safe_obs)
 
     # θ = 45° + φ/2 label near tangent point (visible when not safe)
     text!(ax_mohr,
         lift(s -> "θ = 45° + φ/2 = $(round(Int, s[4]))°", mohr_state_obs),
         position = lift(s -> s[3] + Vec2f(3, 3), mohr_state_obs),
-        fontsize = 12, color = :navy, visible = not_safe_obs)
+        fontsize = 12, color = :red, visible = not_safe_obs)
 
     # Cohesion intercept: dot at (0, c) + text label
     scatter!(ax_mohr,
         lift(c -> [Point2f(0, c)], c_obs),
         color = :darkblue, markersize = 9)
     text!(ax_mohr,
-        lift(c -> "c = \n$(round(Int, c)) MPa", c_obs),
+        lift(c -> "c = $(round(Int, c)) MPa\n ", c_obs),
         position = lift(c -> Point2f(-8, c + 3), c_obs),
-        fontsize = 12, color = :darkblue, align = (:right, :bottom))
+        fontsize = 12, color = :darkblue, align = (:left, :bottom))
 
     # φ label on the failure line — min x floor keeps it clear of the c label at x≈2
-    text!(ax_mohr,
-        lift(φ -> "φ = $(round(Int, φ))°", φ_obs),
-        position = lift((c, φ, σ₁) -> begin
-            x = max(σ₁ * 0.3, 12.0)
-            Point2f(x, c + x * tand(φ) + 4)
-        end, c_obs, φ_obs, σ₁_obs),
-        fontsize = 12, color = :black)
+    # text!(ax_mohr,
+    #     lift(φ -> "φ = $(round(Int, φ))°\n ", φ_obs),
+    #     position = lift((c, φ, σ₁) -> begin
+    #         x = max(σ₁ * 0.3, 12.0)
+    #         Point2f(x, c + x * tand(φ) + 4)
+    #     end, c_obs, φ_obs, σ₁_obs),
+    #     fontsize = 12, color = :black)
 
     # Failure line formula label
     text!(ax_mohr,
-        lift((c, φ, σ₁) -> "τ = c + σ tan(φ)", c_obs, φ_obs, σ₁_obs),
+        lift((c, φ, σ₁) -> "τ = c + σ tan(φ)\n ", c_obs, φ_obs, σ₁_obs),
         position = lift((c, φ, σ₁) -> Point2f(σ₁ * 0.5, c + σ₁ * 0.5 * tand(φ) + 4),
                         c_obs, φ_obs, σ₁_obs),
         fontsize = 11, color = (:black, 0.55))
