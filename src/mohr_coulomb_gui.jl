@@ -50,7 +50,7 @@ function failure_block_geometry(φ::Real, σ₁::Real, σ₃::Real)
 
     # Arrow lengths scale with stress magnitude (σ₁ always ≥ minimum visible)
     σ₁_len = clamp(0.15f0 + 0.4f0 * Float32(σ₁) / 150f0, 0.15f0, 0.55f0)
-    σ₃_len = 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0
+    σ₃_len = max(0.05f0, 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0)
 
     xs = (-0.5f0, 0f0, 0.5f0)
     σ₁_tails = vcat([Point2f(x,  1f0 + σ₁_len) for x in xs],
@@ -84,8 +84,8 @@ function run_mohr_coulomb(;
     sg = SliderGrid(ui_grid[1, 1],
         (label = "Cohesion c [MPa]",                  range = 0.0:1.0:50.0,  startvalue = c_default),
         (label = "Friction angle φ [°]",               range = 0.0:1.0:45.0,  startvalue = phi_default),
-        (label = "Major principal stress σ₁ [MPa]",   range = 0.0:1.0:150.0, startvalue = sigma1_default),
-        (label = "Minor principal stress σ₃ [MPa]",   range = 0.0:1.0:100.0, startvalue = sigma3_default),
+        (label = "Major principal stress σ₁ [MPa]",   range = -30.0:1.0:150.0, startvalue = sigma1_default),
+        (label = "Minor principal stress σ₃ [MPa]",   range = -30.0:1.0:100.0, startvalue = sigma3_default),
         (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.5:30.0,  startvalue = 0.0),
         (label = "Pore pressure u [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
         tellwidth = true
@@ -123,6 +123,7 @@ function run_mohr_coulomb(;
         σ₃eff   = σ₃ - u
         σ₁eff_max = (2*c*cosd(φ) + σ₃eff*(1+s)) / (1-s)
         σ₁_max    = max(σ₃, σ₁eff_max + u)       # never snap below σ₃
+        σ₁_max ≤ 0.0 && return                    # skip cap in tensile regime
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
         set_close_to!(sg.sliders[3], floor(σ₁_max))
