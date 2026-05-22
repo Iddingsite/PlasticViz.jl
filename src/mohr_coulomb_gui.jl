@@ -105,18 +105,18 @@ function run_mohr_coulomb(;
 
     # σ₃ two-sided constraint
     #   Ceiling — σ₃ ≤ σ₁ (total stresses)
-    #   Floor   — σ₃ ≥ −T₀ (total stress; tensile cap on σ axis)
+    #   Floor   — σ₃eff ≥ −T₀: leftmost point of circle cannot cross the tensile cap
     σ₃_resetting = Ref(false)
     function _snap_σ₃!()
         σ₃_resetting[] && return
-        T₀ = T₀_obs[]
+        u, T₀ = u_obs[], T₀_obs[]
         if σ₃_obs[] > σ₁_obs[]
             σ₃_resetting[] = true
             set_close_to!(sg.sliders[4], floor(σ₁_obs[] * 10 + 1e-9) / 10)
             σ₃_resetting[] = false
             return
         end
-        σ₃_floor = -T₀
+        σ₃_floor = u - T₀
         if σ₃_obs[] < σ₃_floor
             σ₃_resetting[] = true
             set_close_to!(sg.sliders[4], ceil(σ₃_floor * 10 - 1e-9) / 10)
@@ -125,6 +125,7 @@ function run_mohr_coulomb(;
     end
     on(σ₃_obs) do _; _snap_σ₃!(); end
     on(σ₁_obs) do _; _snap_σ₃!(); end
+    on(u_obs)  do _; _snap_σ₃!(); end
     on(T₀_obs) do _; _snap_σ₃!(); end
     _snap_σ₃!()
 
