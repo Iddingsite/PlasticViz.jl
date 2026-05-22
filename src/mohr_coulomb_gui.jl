@@ -1,17 +1,25 @@
 # Helper: classify a Mohr-Coulomb stress state and return diagnostic geometry.
 # Returns: (state::Symbol, d::Float64, tangent_pt::Point2f, θ::Float64)
-#   state       — :safe | :critical | :failed
+#   state       — :safe | :critical | :failed | :tensile
 #   d           — perpendicular distance from circle centre to failure line
 #   tangent_pt  — closest point on circle to the failure line
 #   θ           — failure plane angle in degrees (45 + φ/2)
-function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real)
+function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real; T₀::Real=Inf)
     P    = (σ₁ + σ₃) / 2.0
     R    = (σ₁ - σ₃) / 2.0
     tanφ = tand(φ)
     secφ = sqrt(1.0 + tanφ^2)
     d    = (c + P * tanφ) / secφ          # perp. distance centre → line
     tol  = 0.5                             # half a slider step — makes :critical reachable
-    state = R > d + tol ? :failed : (R > d - tol ? :critical : :safe)
+    state = if σ₃ < -T₀
+        :tensile
+    elseif R > d + tol
+        :failed
+    elseif R > d - tol
+        :critical
+    else
+        :safe
+    end
     θ     = 45.0 + φ / 2.0
     # Tangent point = centre + R * unit_normal_toward_failure_line
     # Line: -tanφ·σ + τ - c = 0  →  gradient (-tanφ, 1), pointing from sub- to super-yield
@@ -74,15 +82,21 @@ function run_mohr_coulomb(;
     # Row 2: controls (spans both columns)
     ui_grid = fig[2, 1:2]
     sg = SliderGrid(ui_grid[1, 1],
-        (label = "Cohesion c [MPa]",      range = 0.0:1.0:50.0,  startvalue = c_default),
-        (label = "Friction angle φ [°]",   range = 0.0:1.0:45.0,  startvalue = phi_default),
-        (label = "Major principal stress σ₁ [MPa]",  range = 0.0:1.0:150.0, startvalue = sigma1_default),
-        (label = "Minor principal stress σ₃ [MPa]",  range = 0.0:1.0:100.0, startvalue = sigma3_default),
+        (label = "Cohesion c [MPa]",                  range = 0.0:1.0:50.0,  startvalue = c_default),
+        (label = "Friction angle φ [°]",               range = 0.0:1.0:45.0,  startvalue = phi_default),
+        (label = "Major principal stress σ₁ [MPa]",   range = 0.0:1.0:150.0, startvalue = sigma1_default),
+        (label = "Minor principal stress σ₃ [MPa]",   range = 0.0:1.0:100.0, startvalue = sigma3_default),
+        (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.5:30.0,  startvalue = 0.0),
+        (label = "Pore pressure u [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
         tellwidth = true
     )
-    c_obs, φ_obs, σ₁_obs, σ₃_obs = [s.value for s in sg.sliders]
+    c_obs, φ_obs, σ₁_obs, σ₃_obs, T₀_obs, u_obs = [s.value for s in sg.sliders]
 
-    # σ₃ ≤ σ₁ constraint (snap-back pattern from gui.jl)
+    # Effective stresses (failure criterion always in effective stress space)
+    σ₁eff_obs = lift((σ₁, u) -> σ₁ - u, σ₁_obs, u_obs)
+    σ₃eff_obs = lift((σ₃, u) -> σ₃ - u, σ₃_obs, u_obs)
+
+    # σ₃ ≤ σ₁ constraint (total stresses)
     σ₃_resetting = Ref(false)
     on(sg.sliders[4].value) do _
         σ₃_resetting[] && return
@@ -99,6 +113,27 @@ function run_mohr_coulomb(;
         σ₃_resetting[] = false
     end
 
+    # σ₁ cap: in reality stress cannot exceed the shear failure threshold
+    σ₁_resetting = Ref(false)
+    function _snap_σ₁!()
+        σ₁_resetting[] && return
+        c, φ, σ₃, u = c_obs[], φ_obs[], σ₃_obs[], u_obs[]
+        s = sind(φ)
+        abs(s - 1.0) < 1e-6 && return            # φ = 90°, degenerate
+        σ₃eff   = σ₃ - u
+        σ₁eff_max = (2*c*cosd(φ) + σ₃eff*(1+s)) / (1-s)
+        σ₁_max    = max(σ₃, σ₁eff_max + u)       # never snap below σ₃
+        σ₁_obs[] ≤ σ₁_max && return
+        σ₁_resetting[] = true
+        set_close_to!(sg.sliders[3], floor(σ₁_max))
+        σ₁_resetting[] = false
+    end
+    on(σ₁_obs) do _; _snap_σ₁!(); end
+    on(c_obs)  do _; _snap_σ₁!(); end
+    on(φ_obs)  do _; _snap_σ₁!(); end
+    on(σ₃_obs) do _; _snap_σ₁!(); end
+    on(u_obs)  do _; _snap_σ₁!(); end
+
     # Status label
     status_text_obs  = Observable("SAFE — stress state is inside the failure envelope")
     status_color_obs = Observable{Symbol}(:seagreen)
@@ -106,21 +141,22 @@ function run_mohr_coulomb(;
         color = status_color_obs, fontsize = 14, font = :bold,
         tellwidth = false)
     Label(ui_grid[3, 1],
-        "σ₃ is automatically limited to σ₁ — minor principal stress cannot exceed major principal stress",
+        "σ₃ ≤ σ₁ always.  σ₁ is capped at the shear failure threshold.  Failure criterion uses effective stresses σ − u.",
         fontsize = 11, color = (:black, 0.5), font = :italic, tellwidth = false)
 
     # Derived observables
-    mohr_state_obs   = lift(c_obs, φ_obs, σ₁_obs, σ₃_obs) do c, φ, σ₁, σ₃
-        mohr_failure_state(c, φ, σ₁, σ₃)
+    mohr_state_obs = lift(c_obs, φ_obs, σ₁eff_obs, σ₃eff_obs, T₀_obs) do c, φ, σ₁eff, σ₃eff, T₀
+        mohr_failure_state(c, φ, σ₁eff, σ₃eff; T₀=T₀)
     end
     state_sym_obs    = lift(s -> s[1], mohr_state_obs)
     tangent_obs      = lift(s -> [s[3]], mohr_state_obs)
     circle_color_obs = lift(state_sym_obs) do s
-        s == :safe ? :seagreen : s == :critical ? :darkorange : :crimson
+        s == :safe ? :seagreen : s == :critical ? :darkorange : s == :tensile ? :purple : :crimson
     end
-    not_safe_obs = lift(s -> s != :safe, state_sym_obs)
+    # Tangent point decoration only meaningful for shear failure, not tensile
+    shear_not_safe_obs = lift(s -> s == :critical || s == :failed, state_sym_obs)
 
-    # Row 1: Mohr circle axis
+    # Row 1 col 1: Mohr circle axis
     ax_mohr = Axis(fig[1, 1],
         title  = "Mohr Circle and Coulomb Failure Envelope",
         xlabel = "Normal stress σ [MPa]",
@@ -139,17 +175,30 @@ function run_mohr_coulomb(;
     hlines!(ax_mohr, 0, color = (:black, 0.25))
     vlines!(ax_mohr, 0, color = (:black, 0.25))
 
-    # Mohr circle (parametric curve, 300 points)
+    # Mohr circles
     t_rng = range(0, 2π, length = 300)
-    circle_pts_obs = lift(σ₁_obs, σ₃_obs) do σ₁, σ₃
+
+    # Total stress circle — faint dotted, shown only when u > 0
+    circle_pts_tot_obs = lift(σ₁_obs, σ₃_obs) do σ₁, σ₃
         P = (σ₁ + σ₃) / 2.0
         R = (σ₁ - σ₃) / 2.0
         [Point2f(P + R * cos(t), R * sin(t)) for t in t_rng]
     end
-    lines!(ax_mohr, circle_pts_obs, color = circle_color_obs, linewidth = 3)
+    show_total_obs = lift(u -> u > 0.5, u_obs)
+    lines!(ax_mohr, circle_pts_tot_obs,
+        color = (:gray, 0.35), linewidth = 1.5, linestyle = :dot,
+        visible = show_total_obs)
 
-    # Coulomb failure lines (upper and mirror below σ-axis)
-    σ_ext = range(-10.0, 180.0, length = 2)  # covers max axis extent (σ₁=150 → xmax≈175)
+    # Effective stress circle — main, solid, coloured by failure state
+    circle_pts_eff_obs = lift(σ₁eff_obs, σ₃eff_obs) do σ₁eff, σ₃eff
+        P = (σ₁eff + σ₃eff) / 2.0
+        R = (σ₁eff - σ₃eff) / 2.0
+        [Point2f(P + R * cos(t), R * sin(t)) for t in t_rng]
+    end
+    lines!(ax_mohr, circle_pts_eff_obs, color = circle_color_obs, linewidth = 3)
+
+    # Coulomb failure lines — extended to cover negative σ (pore pressure shift)
+    σ_ext = range(-150.0, 200.0, length = 2)
     lines!(ax_mohr,
         lift(c_obs, φ_obs) do c, φ; [Point2f(s, c + s * tand(φ)) for s in σ_ext]; end,
         color = :black, linewidth = 2)
@@ -157,25 +206,36 @@ function run_mohr_coulomb(;
         lift(c_obs, φ_obs) do c, φ; [Point2f(s, -(c + s * tand(φ))) for s in σ_ext]; end,
         color = :black, linewidth = 2, linestyle = :dash)
 
-    # Tangent point (filled dot, visible only when not safe)
+    # Tensile cutoff — vertical dashed line at σ = −T₀
+    show_T₀_obs = lift(T₀ -> T₀ > 0.1, T₀_obs)
+    vlines!(ax_mohr, lift(T₀ -> [-T₀], T₀_obs),
+        color = :darkorange, linewidth = 2, linestyle = :dash,
+        visible = show_T₀_obs)
+    text!(ax_mohr,
+        lift(T₀ -> "T₀ = $(round(Int, T₀)) MPa", T₀_obs),
+        position = lift(T₀ -> Point2f(-T₀ - 1.0, -3.0), T₀_obs),
+        fontsize = 11, color = :darkorange, align = (:right, :top),
+        visible = show_T₀_obs)
+
+    # Tangent point (shear failure only)
     scatter!(ax_mohr, tangent_obs,
         color = :red, markersize = 12,
         strokecolor = :white, strokewidth = 1.5,
-        visible = not_safe_obs)
+        visible = shear_not_safe_obs)
 
-    # Dashed radius from circle centre to tangent point (visible when not safe)
+    # Dashed radius from circle centre to tangent point (shear failure only)
     lines!(ax_mohr,
-        lift(σ₁_obs, σ₃_obs, mohr_state_obs) do σ₁, σ₃, s
-            [Point2f((σ₁ + σ₃) / 2.0, 0), s[3]]
+        lift(σ₁eff_obs, σ₃eff_obs, mohr_state_obs) do σ₁eff, σ₃eff, s
+            [Point2f((σ₁eff + σ₃eff) / 2.0, 0), s[3]]
         end,
         color = :red, linewidth = 1.5, linestyle = :dash,
-        visible = not_safe_obs)
+        visible = shear_not_safe_obs)
 
-    # θ = 45° + φ/2 label near tangent point (visible when not safe)
+    # θ label near tangent point (shear failure only)
     text!(ax_mohr,
         lift(s -> "θ = 45° + φ/2 = $(round(Int, s[4]))°", mohr_state_obs),
         position = lift(s -> s[3] + Vec2f(3, 3), mohr_state_obs),
-        fontsize = 12, color = :red, visible = not_safe_obs)
+        fontsize = 12, color = :red, visible = shear_not_safe_obs)
 
     # Cohesion intercept: dot at (0, c) + text label
     scatter!(ax_mohr,
@@ -183,17 +243,8 @@ function run_mohr_coulomb(;
         color = :darkblue, markersize = 9)
     text!(ax_mohr,
         lift(c -> "c = $(round(Int, c)) MPa\n ", c_obs),
-        position = lift(c -> Point2f(-8, c + 3), c_obs),
+        position = lift(c -> Point2f(2.0, c + 3), c_obs),
         fontsize = 12, color = :darkblue, align = (:left, :bottom))
-
-    # φ label on the failure line — min x floor keeps it clear of the c label at x≈2
-    # text!(ax_mohr,
-    #     lift(φ -> "φ = $(round(Int, φ))°\n ", φ_obs),
-    #     position = lift((c, φ, σ₁) -> begin
-    #         x = max(σ₁ * 0.3, 12.0)
-    #         Point2f(x, c + x * tand(φ) + 4)
-    #     end, c_obs, φ_obs, σ₁_obs),
-    #     fontsize = 12, color = :black)
 
     # Failure line formula label
     text!(ax_mohr,
@@ -202,26 +253,30 @@ function run_mohr_coulomb(;
                         c_obs, φ_obs, σ₁_obs),
         fontsize = 11, color = (:black, 0.55))
 
-    # σ₁ and σ₃ dotted vertical reference lines + axis labels
+    # σ₁ and σ₃ effective stress reference lines + labels
+    # (show σ' notation when pore pressure is active)
     vlines!(ax_mohr,
-        lift(σ₁_obs, σ₃_obs) do σ₁, σ₃; [σ₃, σ₁]; end,
+        lift(σ₁eff_obs, σ₃eff_obs) do σ₁eff, σ₃eff; [σ₃eff, σ₁eff]; end,
         color = (:gray, 0.4), linestyle = :dot, linewidth = 1.5)
-    text!(ax_mohr, lift(σ₁ -> "σ₁ = $(round(Int, σ₁)) MPa", σ₁_obs),
-        position = lift(σ₁ -> Point2f(σ₁ + 2.0, 2.0), σ₁_obs),
+    text!(ax_mohr,
+        lift((σ₁eff, u) -> u > 0.5 ? "σ₁' = $(round(Int, σ₁eff)) MPa" : "σ₁ = $(round(Int, σ₁eff)) MPa",
+             σ₁eff_obs, u_obs),
+        position = lift(σ₁eff -> Point2f(σ₁eff + 2.0, 2.0), σ₁eff_obs),
         fontsize = 11, align = (:left, :bottom), color = :gray)
-    text!(ax_mohr, lift(σ₃ -> "σ₃ = $(round(Int, σ₃)) MPa", σ₃_obs),
-        position = lift(σ₃ -> Point2f(σ₃ + 2.0, -2.0), σ₃_obs),
+    text!(ax_mohr,
+        lift((σ₃eff, u) -> u > 0.5 ? "σ₃' = $(round(Int, σ₃eff)) MPa" : "σ₃ = $(round(Int, σ₃eff)) MPa",
+             σ₃eff_obs, u_obs),
+        position = lift(σ₃eff -> Point2f(σ₃eff + 2.0, -2.0), σ₃eff_obs),
         fontsize = 11, align = (:left, :top), color = :gray)
 
-    # Reactive axis limits — equal x/y range so DataAspect gives a square content
-    # area, leaving stable room above for the axis title regardless of slider values.
+    # Reactive axis limits — equal x/y range so DataAspect gives stable layout
     function _update_mohr_limits!()
-        σ₁, σ₃, c, φ = σ₁_obs[], σ₃_obs[], c_obs[], φ_obs[]
-        R    = (σ₁ - σ₃) / 2.0
-        x_lo = min(0.0, σ₃) - 5.0
-        x_hi = σ₁ * 1.1 + 10.0
-        y_hi = max(R * 1.5 + 10.0, c + σ₁ * 0.5 * tand(φ) + 12.0)
-        # Pad whichever axis is shorter so both ranges are equal
+        σ₁, σ₃, c, φ, u, T₀ = σ₁_obs[], σ₃_obs[], c_obs[], φ_obs[], u_obs[], T₀_obs[]
+        R     = (σ₁ - σ₃) / 2.0
+        σ₃eff = σ₃ - u
+        x_lo  = min(0.0, σ₃eff, -T₀) - 8.0
+        x_hi  = max(σ₁, σ₁ - u + R) * 1.1 + 10.0
+        y_hi  = max(R * 1.5 + 10.0, c + σ₁ * 0.5 * tand(φ) + 12.0)
         x_range = x_hi - x_lo
         y_range = 2.0 * y_hi
         if x_range < y_range
@@ -237,9 +292,11 @@ function run_mohr_coulomb(;
     on(σ₃_obs) do _; _update_mohr_limits!(); end
     on(c_obs)  do _; _update_mohr_limits!(); end
     on(φ_obs)  do _; _update_mohr_limits!(); end
+    on(u_obs)  do _; _update_mohr_limits!(); end
+    on(T₀_obs) do _; _update_mohr_limits!(); end
     _update_mohr_limits!()
 
-    # Row 1 col 2: failure-plane block sketch
+    # Row 1 col 2: failure-plane block sketch (uses total stresses for applied loads)
     ax_block = Axis(fig[1, 2])
     hidedecorations!(ax_block)
     hidespines!(ax_block)
@@ -275,7 +332,7 @@ function run_mohr_coulomb(;
         color = :darkorange, shaftwidth = 2, tipwidth = 8,
         visible = σ₃_visible_obs)
 
-    # Stress value labels — positioned just above/right of arrow tails (reactive)
+    # Stress value labels
     text!(ax_block,
         lift(σ₁ -> "σ₁ = $(round(Int, σ₁)) MPa", σ₁_obs),
         position = lift(σ₁_obs) do σ₁
@@ -292,8 +349,7 @@ function run_mohr_coulomb(;
         align = (:left, :center), fontsize = 13, color = :darkorange,
         visible = σ₃_visible_obs)
 
-    # θ angle label inside top-left of block (failure line always runs bottom-left→top-right,
-    # so the far top-left corner is clear at every angle)
+    # θ angle label inside top-left of block
     text!(ax_block,
         lift(geo -> "θ = 45° + φ/2 = $(round(Int, geo.θ))°", block_geo_obs),
         position = Point2f(-0.95, 0.92),
@@ -310,8 +366,8 @@ function run_mohr_coulomb(;
         σ₁, σ₃ = σ₁_obs[], σ₃_obs[]
         l₁ = clamp(0.15f0 + 0.4f0 * Float32(σ₁) / 150f0, 0.15f0, 0.55f0)
         l₃ = 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0
-        y_top   = Float64(1f0 + l₁) + 0.6   # arrow tail + label
-        x_right = Float64(1f0 + l₃) + 1.8   # arrow tail + σ₃ text
+        y_top   = Float64(1f0 + l₁) + 0.6
+        x_right = Float64(1f0 + l₃) + 1.8
         xlims!(ax_block, -1.8, x_right)
         ylims!(ax_block, -2.5, y_top)
     end
@@ -327,8 +383,11 @@ function run_mohr_coulomb(;
         elseif s == :critical
             status_text_obs[]  = "CRITICAL — Mohr circle is tangent to the failure envelope"
             status_color_obs[] = :darkorange
+        elseif s == :tensile
+            status_text_obs[]  = "TENSILE FAILURE — effective minor stress exceeds tensile strength T₀"
+            status_color_obs[] = :purple
         else
-            status_text_obs[]  = "FAILED — Mohr circle crosses the failure envelope"
+            status_text_obs[]  = "SHEAR FAILURE — Mohr circle crosses the Coulomb envelope"
             status_color_obs[] = :crimson
         end
     end
