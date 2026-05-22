@@ -104,6 +104,9 @@ function run_mohr_coulomb(;
     Label(ui_grid[2, 1], status_text_obs,
         color = status_color_obs, fontsize = 14, font = :bold,
         tellwidth = false)
+    Label(ui_grid[3, 1],
+        "σ₃ is automatically limited to σ₁ — confining stress cannot exceed axial stress",
+        fontsize = 11, color = (:black, 0.5), font = :italic, tellwidth = false)
 
     # Derived observables
     mohr_state_obs   = lift(c_obs, φ_obs, σ₁_obs, σ₃_obs) do c, φ, σ₁, σ₃
