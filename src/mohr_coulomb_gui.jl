@@ -1,6 +1,6 @@
 # Helper: classify a Mohr-Coulomb stress state and return diagnostic geometry.
 # Returns: (state::Symbol, d::Float64, tangent_pt::Point2f, θ::Float64)
-#   state       — :safe | :critical | :failed | :tensile
+#   state       — :safe | :critical | :tensile
 #   d           — perpendicular distance from circle centre to failure line
 #   tangent_pt  — closest point on circle to the failure line
 #   θ           — failure plane angle in degrees (45 + φ/2)
@@ -10,11 +10,9 @@ function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real; T₀::R
     tanφ = tand(φ)
     secφ = sqrt(1.0 + tanφ^2)
     d    = (c + P * tanφ) / secφ          # perp. distance centre → line
-    tol  = 0.5                             # half a slider step — makes boundary states reachable
-    state = if σ₃ ≤ -T₀ + tol
+    tol  = 0.1                             # half a slider step — makes boundary states reachable
+    state = if σ₃ ≤ -T₀
         :tensile
-    elseif R > d + tol
-        :failed
     elseif R > d - tol
         :critical
     else
@@ -91,12 +89,12 @@ function run_mohr_coulomb(;
     # Row 2: controls (spans both columns)
     ui_grid = fig[2, 1:2]
     sg = SliderGrid(ui_grid[1, 1],
-        (label = "Cohesion c [MPa]",                  range = 0.0:1.0:50.0,  startvalue = c_default),
-        (label = "Friction angle φ [°]",               range = 0.0:1.0:45.0,  startvalue = phi_default),
-        (label = "Major principal stress σ₁ [MPa]",   range = -30.0:1.0:150.0, startvalue = sigma1_default),
-        (label = "Minor principal stress σ₃ [MPa]",   range = -30.0:1.0:100.0, startvalue = sigma3_default),
-        (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.5:30.0,  startvalue = 0.0),
-        (label = "Pore pressure Pf [MPa]",             range = 0.0:1.0:100.0, startvalue = 0.0),
+        (label = "Cohesion c [MPa]",                  range = 0.0:0.1:50.0,  startvalue = c_default),
+        (label = "Friction angle φ [°]",               range = 0.0:0.1:45.0,  startvalue = phi_default),
+        (label = "Major principal stress σ₁ [MPa]",   range = -30.0:0.1:150.0, startvalue = sigma1_default),
+        (label = "Minor principal stress σ₃ [MPa]",   range = -30.0:0.1:100.0, startvalue = sigma3_default),
+        (label = "Tensile strength T₀ [MPa]",         range = 0.0:0.1:30.0,  startvalue = 0.0),
+        (label = "Pore pressure Pf [MPa]",             range = 0.0:0.1:100.0, startvalue = 0.0),
         tellwidth = true
     )
     c_obs, φ_obs, σ₁_obs, σ₃_obs, T₀_obs, u_obs = [s.value for s in sg.sliders]
@@ -114,14 +112,14 @@ function run_mohr_coulomb(;
         u, T₀ = u_obs[], T₀_obs[]
         if σ₃_obs[] > σ₁_obs[]
             σ₃_resetting[] = true
-            set_close_to!(sg.sliders[4], floor(σ₁_obs[]))
+            set_close_to!(sg.sliders[4], floor(σ₁_obs[] * 10 + 1e-9) / 10)
             σ₃_resetting[] = false
             return
         end
         σ₃_floor = u - T₀
         if σ₃_obs[] < σ₃_floor
             σ₃_resetting[] = true
-            set_close_to!(sg.sliders[4], ceil(σ₃_floor))
+            set_close_to!(sg.sliders[4], ceil(σ₃_floor * 10 - 1e-9) / 10)
             σ₃_resetting[] = false
         end
     end
@@ -143,7 +141,7 @@ function run_mohr_coulomb(;
         σ₁_floor = u - T₀
         if σ₁_obs[] < σ₁_floor
             σ₁_resetting[] = true
-            set_close_to!(sg.sliders[3], ceil(σ₁_floor))
+            set_close_to!(sg.sliders[3], ceil(σ₁_floor * 10 - 1e-9) / 10)
             σ₁_resetting[] = false
             return
         end
@@ -156,7 +154,7 @@ function run_mohr_coulomb(;
         σ₁_max    = max(σ₃, σ₁eff_max + u, σ₁_floor)   # never push σ₁ below tensile floor
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
-        set_close_to!(sg.sliders[3], floor(σ₁_max))
+        set_close_to!(sg.sliders[3], floor(σ₁_max * 10 + 1e-9) / 10)
         σ₁_resetting[] = false
     end
     on(σ₁_obs) do _; _snap_σ₁!(); end
@@ -183,10 +181,10 @@ function run_mohr_coulomb(;
     state_sym_obs    = lift(s -> s[1], mohr_state_obs)
     tangent_obs      = lift(s -> [s[3]], mohr_state_obs)
     circle_color_obs = lift(state_sym_obs) do s
-        s == :safe ? :seagreen : s == :critical ? :red : s == :tensile ? :purple : :crimson
+        s == :safe ? :seagreen : s == :critical ? :red : :purple
     end
     # Tangent point decoration only meaningful for shear failure, not tensile
-    shear_not_safe_obs = lift(s -> s == :critical || s == :failed, state_sym_obs)
+    shear_not_safe_obs = lift(s -> s == :critical, state_sym_obs)
 
     # Row 1 col 1: Mohr circle axis
     ax_mohr = Axis(fig[1, 1],
@@ -460,7 +458,7 @@ function run_mohr_coulomb(;
             status_text_obs[]  = "NO FAILURE — stress state is inside the failure envelope"
             status_color_obs[] = :seagreen
         elseif s == :critical
-            status_text_obs[]  = "CRITICAL — Mohr circle is tangent to the failure envelope"
+            status_text_obs[]  = "FAILURE — Mohr circle is tangent to the failure envelope"
             status_color_obs[] = :red
         elseif s == :tensile
             status_text_obs[]  = "TENSILE FAILURE — effective minor stress exceeds tensile strength T₀"

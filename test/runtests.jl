@@ -13,11 +13,11 @@ using PlasticViz
         @test tp[2] > 0.0  # tangent point is in upper half-plane
     end
 
-    @testset "mohr_failure_state — failed" begin
+    @testset "mohr_failure_state — critical (well past envelope)" begin
         # c=5, φ=20°, σ₁=100, σ₃=0
-        # P=50, R=50, d=(5+50*tan20°)/sec20°≈21.8 << R=50 → failed
+        # P=50, R=50, d≈21.8 — circle far outside envelope → :critical
         state, d, _, _ = PlasticViz.mohr_failure_state(5.0, 20.0, 100.0, 0.0)
-        @test state == :failed
+        @test state == :critical
         @test d < 50.0
     end
 
