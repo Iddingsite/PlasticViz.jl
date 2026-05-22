@@ -102,6 +102,13 @@ function run_mohr_coulomb(;
         σ₃_resetting[] = false
     end
 
+    # Status label
+    status_text_obs  = Observable("SAFE — stress state is inside the failure envelope")
+    status_color_obs = Observable{Symbol}(:seagreen)
+    Label(ui_grid[2, 1], status_text_obs,
+        color = status_color_obs, fontsize = 14, font = :bold,
+        tellwidth = false)
+
     # Derived observables
     mohr_state_obs   = lift(c_obs, φ_obs, σ₁_obs, σ₃_obs) do c, φ, σ₁, σ₃
         mohr_failure_state(c, φ, σ₁, σ₃)
@@ -261,6 +268,25 @@ function run_mohr_coulomb(;
 
     xlims!(ax_block, -2.5, 2.8)
     ylims!(ax_block, -2.1, 2.2)
+
+    # Wire status label to state
+    on(state_sym_obs; update = true) do s
+        if s == :safe
+            status_text_obs[]  = "SAFE — stress state is inside the failure envelope"
+            status_color_obs[] = :seagreen
+        elseif s == :critical
+            status_text_obs[]  = "CRITICAL — Mohr circle is tangent to the failure envelope"
+            status_color_obs[] = :darkorange
+        else
+            status_text_obs[]  = "FAILED — Mohr circle crosses the failure envelope"
+            status_color_obs[] = :crimson
+        end
+    end
+
+    rowsize!(fig.layout, 1, Relative(0.55))
+    rowsize!(fig.layout, 2, Relative(0.30))
+    rowgap!(fig.layout, 1, 8)
+    rowgap!(fig.layout, 2, 8)
 
     display(fig)
 end
