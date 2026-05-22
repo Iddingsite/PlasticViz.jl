@@ -229,13 +229,16 @@ function run_mohr_coulomb(;
         lift(c_obs, φ_obs) do c, φ; [Point2f(s, -(c + s * tand(φ))) for s in σ_ext]; end,
         color = :black, linewidth = 2, linestyle = :dash)
 
+    # Tracks the current bottom y limit of the Mohr axis (updated by _update_mohr_limits!)
+    y_bottom_obs = Observable(-50.0)
+
     # Tensile cutoff — vertical dashed line at σ = −T₀ (always shown)
     vlines!(ax_mohr, lift(T₀ -> [-T₀], T₀_obs),
         color = :purple, linewidth = 2, linestyle = :dash)
     text!(ax_mohr,
         lift(T₀ -> "T₀ = $(round(Int, T₀)) MPa", T₀_obs),
-        position = lift(T₀ -> Point2f(-T₀ + 1.5, -5.0), T₀_obs),
-        fontsize = 11, color = :purple, align = (:left, :top))
+        position = lift((T₀, yb) -> Point2f(-T₀ + 1.5, yb + 2.0), T₀_obs, y_bottom_obs),
+        fontsize = 11, color = :purple, align = (:left, :bottom))
 
     # Tangent point (shear failure only)
     scatter!(ax_mohr, tangent_obs,
@@ -307,6 +310,7 @@ function run_mohr_coulomb(;
         end
         xlims!(ax_mohr, x_lo, x_hi)
         ylims!(ax_mohr, -y_hi, y_hi)
+        y_bottom_obs[] = -y_hi
     end
     on(σ₁_obs) do _; _update_mohr_limits!(); end
     on(σ₃_obs) do _; _update_mohr_limits!(); end
@@ -432,17 +436,14 @@ function run_mohr_coulomb(;
     # Wire status label to state
     on(state_sym_obs; update = true) do s
         if s == :safe
-            status_text_obs[]  = "SAFE — stress state is inside the failure envelope"
+            status_text_obs[]  = "NO FAILURE — stress state is inside the failure envelope"
             status_color_obs[] = :seagreen
         elseif s == :critical
             status_text_obs[]  = "CRITICAL — Mohr circle is tangent to the failure envelope"
-            status_color_obs[] = :darkorange
+            status_color_obs[] = :red
         elseif s == :tensile
             status_text_obs[]  = "TENSILE FAILURE — effective minor stress exceeds tensile strength T₀"
             status_color_obs[] = :purple
-        else
-            status_text_obs[]  = "SHEAR FAILURE — Mohr circle crosses the Coulomb envelope"
-            status_color_obs[] = :crimson
         end
     end
 
