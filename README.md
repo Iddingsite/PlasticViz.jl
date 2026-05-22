@@ -47,7 +47,7 @@ run_yield_plasticity(colormap = :viridis)
 
 ## Mohr-Coulomb Teaching GUI
 
-An interactive two-panel GUI for teaching the Mohr-Coulomb failure criterion. Designed for students.
+An interactive GUI for teaching the Mohr-Coulomb failure criterion. Designed for students.
 
 ```julia
 using PlasticViz

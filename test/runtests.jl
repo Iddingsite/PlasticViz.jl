@@ -61,4 +61,13 @@ using PlasticViz
         @test isempty(geo.σ₃_tails)
     end
 
+    @testset "mohr_failure_state — critical" begin
+        # Construct a case where R ≈ d (within tol=0.5): pick c=0, φ=30°, σ₃=0
+        # d = (0 + P·tan30°)/sec30° = P·sin30° = P/2
+        # R = σ₁/2 = P  →  d = P/2, R = P: not critical. Try with c>0.
+        # Use c=10, φ=0°: d=c=10, R=(σ₁-σ₃)/2. Set R=10 → σ₁=σ₃+20, e.g. σ₁=30,σ₃=10
+        state, _, _, _ = PlasticViz.mohr_failure_state(10.0, 0.0, 30.0, 10.0)
+        @test state == :critical
+    end
+
 end

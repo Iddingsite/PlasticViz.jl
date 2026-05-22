@@ -8,14 +8,14 @@ function mohr_failure_state(c::Real, φ::Real, σ₁::Real, σ₃::Real)
     P    = (σ₁ + σ₃) / 2.0
     R    = (σ₁ - σ₃) / 2.0
     tanφ = tand(φ)
-    norm = sqrt(1.0 + tanφ^2)
-    d    = (c + P * tanφ) / norm          # perp. distance centre → line
-    tol  = 1e-2
+    secφ = sqrt(1.0 + tanφ^2)
+    d    = (c + P * tanφ) / secφ          # perp. distance centre → line
+    tol  = 0.5                             # half a slider step — makes :critical reachable
     state = R > d + tol ? :failed : (R > d - tol ? :critical : :safe)
     θ     = 45.0 + φ / 2.0
     # Tangent point = centre + R * unit_normal_toward_failure_line
     # Line: -tanφ·σ + τ - c = 0  →  gradient (-tanφ, 1), pointing from sub- to super-yield
-    tangent_pt = Point2f(P - R * tanφ / norm, R / norm)
+    tangent_pt = Point2f(P - R * tanφ / secφ, R / secφ)
     return state, d, tangent_pt, θ
 end
 
@@ -140,7 +140,7 @@ function run_mohr_coulomb(;
     lines!(ax_mohr, circle_pts_obs, color = circle_color_obs, linewidth = 3)
 
     # Coulomb failure lines (upper and mirror below σ-axis)
-    σ_ext = range(-10.0, 160.0, length = 2)
+    σ_ext = range(-10.0, 180.0, length = 2)  # covers max axis extent (σ₁=150 → xmax≈175)
     lines!(ax_mohr,
         lift(c_obs, φ_obs) do c, φ; [Point2f(s, c + s * tand(φ)) for s in σ_ext]; end,
         color = :black, linewidth = 2)
