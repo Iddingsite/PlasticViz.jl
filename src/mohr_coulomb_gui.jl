@@ -53,10 +53,19 @@ function failure_block_geometry(φ::Real, σ₁::Real, σ₃::Real)
     σ₃_len = max(0.05f0, 0.15f0 + 0.4f0 * Float32(σ₃) / 150f0)
 
     xs = (-0.5f0, 0f0, 0.5f0)
-    σ₁_tails = vcat([Point2f(x,  1f0 + σ₁_len) for x in xs],
-                    [Point2f(x, -1f0 - σ₁_len) for x in xs])
-    σ₁_vecs  = vcat([Vec2f(0f0, -σ₁_len) for _ in xs],
-                    [Vec2f(0f0,  σ₁_len) for _ in xs])
+    if σ₁ >= 0
+        # Compressive: arrows point into top/bottom faces
+        σ₁_tails = vcat([Point2f(x,  1f0 + σ₁_len) for x in xs],
+                        [Point2f(x, -1f0 - σ₁_len) for x in xs])
+        σ₁_vecs  = vcat([Vec2f(0f0, -σ₁_len) for _ in xs],
+                        [Vec2f(0f0,  σ₁_len) for _ in xs])
+    else
+        # Tensile: arrows point away from top/bottom faces
+        σ₁_tails = vcat([Point2f(x,  1f0) for x in xs],
+                        [Point2f(x, -1f0) for x in xs])
+        σ₁_vecs  = vcat([Vec2f(0f0,  σ₁_len) for _ in xs],
+                        [Vec2f(0f0, -σ₁_len) for _ in xs])
+    end
 
     ys = (-0.4f0, 0f0, 0.4f0)
     σ₃_tails = vcat([Point2f( 1f0 + σ₃_len, y) for y in ys],
@@ -113,17 +122,30 @@ function run_mohr_coulomb(;
         σ₃_resetting[] = false
     end
 
-    # σ₁ cap: in reality stress cannot exceed the shear failure threshold
+    # σ₁ cap: two-sided constraint
+    #   Floor — σ₁eff ≥ −T₀: prevents the whole circle from sitting left of the tensile cutoff
+    #   Ceiling — σ₁eff ≤ shear failure threshold (compressive regime only)
     σ₁_resetting = Ref(false)
     function _snap_σ₁!()
         σ₁_resetting[] && return
-        c, φ, σ₃, u = c_obs[], φ_obs[], σ₃_obs[], u_obs[]
+        c, φ, σ₃, u, T₀ = c_obs[], φ_obs[], σ₃_obs[], u_obs[], T₀_obs[]
+
+        # Floor: σ₁eff = σ₁ − u ≥ −T₀  →  σ₁ ≥ u − T₀
+        σ₁_floor = u - T₀
+        if σ₁_obs[] < σ₁_floor
+            σ₁_resetting[] = true
+            set_close_to!(sg.sliders[3], ceil(σ₁_floor))
+            σ₁_resetting[] = false
+            return
+        end
+
+        # Ceiling: shear failure threshold (skip in tensile regime)
         s = sind(φ)
-        abs(s - 1.0) < 1e-6 && return            # φ = 90°, degenerate
-        σ₃eff   = σ₃ - u
+        abs(s - 1.0) < 1e-6 && return
+        σ₃eff     = σ₃ - u
         σ₁eff_max = (2*c*cosd(φ) + σ₃eff*(1+s)) / (1-s)
-        σ₁_max    = max(σ₃, σ₁eff_max + u)       # never snap below σ₃
-        σ₁_max ≤ 0.0 && return                    # skip cap in tensile regime
+        σ₁_max    = max(σ₃, σ₁eff_max + u)
+        σ₁_max ≤ 0.0 && return
         σ₁_obs[] ≤ σ₁_max && return
         σ₁_resetting[] = true
         set_close_to!(sg.sliders[3], floor(σ₁_max))
@@ -134,6 +156,7 @@ function run_mohr_coulomb(;
     on(φ_obs)  do _; _snap_σ₁!(); end
     on(σ₃_obs) do _; _snap_σ₁!(); end
     on(u_obs)  do _; _snap_σ₁!(); end
+    on(T₀_obs) do _; _snap_σ₁!(); end
 
     # Status label
     status_text_obs  = Observable("SAFE — stress state is inside the failure envelope")
@@ -207,16 +230,13 @@ function run_mohr_coulomb(;
         lift(c_obs, φ_obs) do c, φ; [Point2f(s, -(c + s * tand(φ))) for s in σ_ext]; end,
         color = :black, linewidth = 2, linestyle = :dash)
 
-    # Tensile cutoff — vertical dashed line at σ = −T₀
-    show_T₀_obs = lift(T₀ -> T₀ > 0.1, T₀_obs)
+    # Tensile cutoff — vertical dashed line at σ = −T₀ (always shown)
     vlines!(ax_mohr, lift(T₀ -> [-T₀], T₀_obs),
-        color = :purple, linewidth = 2, linestyle = :dash,
-        visible = show_T₀_obs)
+        color = :purple, linewidth = 2, linestyle = :dash)
     text!(ax_mohr,
         lift(T₀ -> "T₀ = $(round(Int, T₀)) MPa", T₀_obs),
-        position = lift(T₀ -> Point2f(-T₀ - 1.0, -3.0), T₀_obs),
-        fontsize = 11, color = :purple, align = (:right, :top),
-        visible = show_T₀_obs)
+        position = lift(T₀ -> Point2f(-T₀ + 1.5, -5.0), T₀_obs),
+        fontsize = 11, color = :purple, align = (:left, :top))
 
     # Tangent point (shear failure only)
     scatter!(ax_mohr, tangent_obs,
