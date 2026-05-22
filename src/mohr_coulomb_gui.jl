@@ -76,7 +76,7 @@ function run_mohr_coulomb(;
         (label = "Cohesion c [MPa]",      range = 0.0:1.0:50.0,  startvalue = c_default),
         (label = "Friction angle φ [°]",   range = 0.0:1.0:45.0,  startvalue = phi_default),
         (label = "Major stress σ₁ [MPa]",  range = 0.0:1.0:150.0, startvalue = sigma1_default),
-        (label = "Minor stress σ₃ [MPa]",  range = 0.0:1.0:100.0, startvalue = sigma3_default),
+        (label = "Minor stress σ₃ [MPa]",  range = 0.0:1.0:150.0, startvalue = sigma3_default),
         tellwidth = true
     )
     c_obs, φ_obs, σ₁_obs, σ₃_obs = [s.value for s in sg.sliders]
