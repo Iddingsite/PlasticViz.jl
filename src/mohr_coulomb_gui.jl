@@ -209,12 +209,12 @@ function run_mohr_coulomb(;
     # Tensile cutoff — vertical dashed line at σ = −T₀
     show_T₀_obs = lift(T₀ -> T₀ > 0.1, T₀_obs)
     vlines!(ax_mohr, lift(T₀ -> [-T₀], T₀_obs),
-        color = :darkorange, linewidth = 2, linestyle = :dash,
+        color = :purple, linewidth = 2, linestyle = :dash,
         visible = show_T₀_obs)
     text!(ax_mohr,
         lift(T₀ -> "T₀ = $(round(Int, T₀)) MPa", T₀_obs),
         position = lift(T₀ -> Point2f(-T₀ - 1.0, -3.0), T₀_obs),
-        fontsize = 11, color = :darkorange, align = (:right, :top),
+        fontsize = 11, color = :purple, align = (:right, :top),
         visible = show_T₀_obs)
 
     # Tangent point (shear failure only)
@@ -310,27 +310,48 @@ function run_mohr_coulomb(;
         [Point2f(-1,-1), Point2f(1,-1), Point2f(1,1), Point2f(-1,1)],
         color = (:steelblue, 0.12), strokecolor = :black, strokewidth = 2)
 
-    # Failure plane (dashed red line, angle θ) — faint when safe, vivid when active
+    is_tensile_obs   = lift(s -> s == :tensile, state_sym_obs)
+    not_tensile_obs  = lift(s -> s != :tensile, state_sym_obs)
+
+    # Shear failure plane (diagonal dashed, faint when safe) — hidden during tensile
     plane_color_obs = lift(state_sym_obs) do s
         s == :safe ? (:red, 0.2) : (:red, 1.0)
     end
     lines!(ax_block,
         lift(geo -> [geo.plane_pts[1], geo.plane_pts[2]], block_geo_obs),
-        color = plane_color_obs, linewidth = 2.5, linestyle = :dash)
+        color = plane_color_obs, linewidth = 2.5, linestyle = :dash,
+        visible = not_tensile_obs)
 
-    # σ₁ arrows (vertical, compressive — navy)
+    # Tensile crack — vertical solid crimson line (Mode I, perpendicular to σ₃)
+    lines!(ax_block, [Point2f(0, -1), Point2f(0, 1)],
+        color = :purple, linewidth = 3.0, linestyle = :solid,
+        visible = is_tensile_obs)
+
+    # σ₁ arrows (vertical, compressive — navy; always shown)
     arrows2d!(ax_block.scene,
         lift(geo -> geo.σ₁_tails, block_geo_obs),
         lift(geo -> geo.σ₁_vecs,  block_geo_obs),
         color = :navy, shaftwidth = 2, tipwidth = 8)
 
-    # σ₃ arrows (horizontal, compressive — orange; hidden via visible when σ₃ ≈ 0)
-    σ₃_visible_obs = lift(geo -> geo.show_σ₃, block_geo_obs)
+    # σ₃ compressive arrows (inward, orange) — hidden during tensile failure or σ₃ ≈ 0
+    σ₃_comp_visible_obs = lift((geo, s) -> geo.show_σ₃ && s != :tensile,
+                               block_geo_obs, state_sym_obs)
     arrows2d!(ax_block.scene,
         lift(geo -> geo.σ₃_tails, block_geo_obs),
         lift(geo -> geo.σ₃_vecs,  block_geo_obs),
         color = :darkorange, shaftwidth = 2, tipwidth = 8,
-        visible = σ₃_visible_obs)
+        visible = σ₃_comp_visible_obs)
+
+    # σ₃ tensile arrows (outward from block faces, purple) — only during tensile failure
+    # Fixed geometry: tails on block faces, vectors pointing away
+    _ys_t = (-0.4f0, 0f0, 0.4f0)
+    σ₃_tens_tails = vcat([Point2f( 1f0, y) for y in _ys_t],
+                         [Point2f(-1f0, y) for y in _ys_t])
+    σ₃_tens_vecs  = vcat([Vec2f( 0.35f0, 0f0) for _ in _ys_t],
+                         [Vec2f(-0.35f0, 0f0) for _ in _ys_t])
+    arrows2d!(ax_block.scene, σ₃_tens_tails, σ₃_tens_vecs,
+        color = :purple, shaftwidth = 2, tipwidth = 8,
+        visible = is_tensile_obs)
 
     # Stress value labels
     text!(ax_block,
@@ -347,19 +368,32 @@ function run_mohr_coulomb(;
             Point2f(1f0 + l + 0.15f0, 0)
         end,
         align = (:left, :center), fontsize = 13, color = :darkorange,
-        visible = σ₃_visible_obs)
+        visible = σ₃_comp_visible_obs)
 
-    # θ angle label inside top-left of block
+    # θ label (shear failure only) — top-left corner of block
     text!(ax_block,
         lift(geo -> "θ = 45° + φ/2 = $(round(Int, geo.θ))°", block_geo_obs),
         position = Point2f(-0.95, 0.92),
-        fontsize = 12, color = :red, align = (:left, :top))
+        fontsize = 12, color = :red, align = (:left, :top),
+        visible = not_tensile_obs)
+
+    # Tensile failure label (replaces θ label)
+    text!(ax_block, "Mode I tensile crack\n(opens ⊥ to σ₃)",
+        position = Point2f(-0.95, 0.92),
+        fontsize = 12, color = :purple, align = (:left, :top),
+        visible = is_tensile_obs)
 
     # Teaching sentence below the block
     text!(ax_block,
         "The failure plane orientation depends\n only on φ, not on cohesion c.",
         position = Point2f(0, -1.6), align = (:center, :top),
-        fontsize = 12, color = (:black, 0.65), font = :italic)
+        fontsize = 12, color = (:black, 0.65), font = :italic,
+        visible = not_tensile_obs)
+    text!(ax_block,
+        "Tensile failure: effective σ₃ falls\n below the tensile strength −T₀.",
+        position = Point2f(0, -1.6), align = (:center, :top),
+        fontsize = 12, color = (:purple, 0.8), font = :italic,
+        visible = is_tensile_obs)
 
     # Reactive limits — tighter margins so the block fills more of the panel
     function _update_block_limits!()
