@@ -124,8 +124,14 @@ function run_mohr_coulomb(;
     ax_mohr = Axis(fig[1, 1],
         title  = "Mohr Circle and Coulomb Failure Envelope",
         xlabel = "Normal stress σ [MPa]",
-        ylabel = "Shear stress τ [MPa]\n(τ_max = (σ₁ − σ₃) / 2)",
+        ylabel = "Shear stress τ [MPa]",
         aspect = DataAspect()
+    )
+
+    text!(ax_mohr,
+        0.05, 0.95,
+        text = L"\tau_{\max} = \frac{\sigma_1 - \sigma_3}{2}",
+        space = :relative
     )
     hlines!(ax_mohr, 0, color = (:black, 0.25))
     vlines!(ax_mohr, 0, color = (:black, 0.25))
